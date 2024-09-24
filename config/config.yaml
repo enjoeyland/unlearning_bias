@@ -1,0 +1,53 @@
+project_name: unlearning_bias
+
+defaults:
+  - model: llama2-7b
+  - dataset: bbq
+  - method: original  # options: [original, negtaskvector, finetune]
+
+cache_dir: .cache/
+
+data:
+  forget_lang: ["en"]
+  retain_lang: ["en"]
+  forget_ratio: 0.01
+  forget_num: 32
+  retain_multiplier: 1
+  max_length: 512
+  num_workers: 4
+
+
+training:
+  seed: 42
+  wandb_mode: online  # options: [disabled, online, offline]
+  
+  use_lora: false
+  use_qlora: false
+  load_in_8bit: false
+  load_in_4bit: false
+  dp_strategy: auto  # options: [auto, ddp, fsdp, deepspeed, deepspeed_stage_1, deepspeed_stage_2, deepspeed_stage_2_offload, deepspeed_stage_3, deepspeed_stage_3_offload]
+  bf16: false
+  
+  optimizer: adamw  # options: [adam, adamw]
+  learning_rate: 0.001
+  lr_scheduler_type: linear  # options: [linear, cosine]
+  warmup_ratio: 0.1
+  epochs: 20
+
+  world_size: 1
+  per_device_batch_size: 16
+  gradient_accumulation_steps: 4
+  train_batch_size: ${training.world_size} * ${training.per_device_batch_size} * ${training.gradient_accumulation_steps}
+
+callbacks:
+  logging_steps: 500
+  eval_steps: 1000
+  max_tolerance: 3
+
+output_dir: checkpoints/
+
+
+do_train: false
+do_eval: false
+do_test: false
+test_src_lang_only: false
