@@ -1,50 +1,58 @@
-from pathlib import Path
 import argparse
 import json
-import jsonlines
-from datasets import load_dataset
 
+from collections import Counter
+print("importing...", end=" ")
+from datasets import load_dataset, concatenate_datasets
+print("Done")
 
 def main(args):
-    if not Path(f"stereoset_{args.data_name}.jsonl").exists():
+    ANTI_STEREOTYPE = 0
+    STEREOTYPE = 1
+    UNRELATED = 2
+    
+    label_name = ["anti-stereotype", "stereotype", "unrelated"]
+
+    cnt_stereoset = Counter()
+    with open(f"stereoset_{label_name[ANTI_STEREOTYPE]}.jsonl", "w") as f_antistereotype, \
+            open(f"stereoset_{label_name[STEREOTYPE]}.jsonl", "w") as f_stereotype, \
+            open(f"stereoset_{label_name[UNRELATED]}.jsonl", "w") as f_unrelated:
+        
         print("Loading dataset...", end=" ")
-        datset = load_dataset(args.data_path, args.data_name, cache_dir=args.cache_dir)
+        dataset_inter = load_dataset(args.data_path, "intersentence", cache_dir=args.cache_dir)
+        dataset_intra = load_dataset(args.data_path, "intrasentence", cache_dir=args.cache_dir)
         print("Done")
 
 
-        with open(f"stereoset_{args.data_name}.jsonl", "w") as f:
-            for d in datset["validation"]:
-                for i in range(len(d["sentences"]["sentence"])):
-                    data = {
-                        "context": d["context"],
-                        "sentence": d["sentences"]["sentence"][i],
-                        "label": d["sentences"]["gold_label"][i],
-                        "id": d["id"],
-                        "target": d["target"],
-                        "bias_type": d["bias_type"],
-                    }
+        for d in concatenate_datasets([dataset_inter["validation"], dataset_intra["validation"]]):
+            for i in range(len(d["sentences"]["sentence"])):
 
-                    json.dump(data, f)
-                    f.write("\n")
+                data = {
+                    "context": d["context"],
+                    "sentence": d["sentences"]["sentence"][i],
+                    "bias_type": d["bias_type"],
+                    "label": d["sentences"]["gold_label"][i],
+                    "id": d["id"],
+                    "target": d["target"],
+                }
 
-    label_name = ["anti-stereotype", "stereotype", "unrelated"]
-    with jsonlines.open(f"stereoset_{args.data_name}.jsonl", "r") as reader:
-        dataset = list(reader)            
 
-    for label, label_name in enumerate(['anti-stereotype', 'stereotype', 'unrelated']):
-        with open(f"stereoset_{args.data_name}_{label_name}.jsonl", "w") as f:
-            for d in dataset:
-                if d["label"] == label:
-                    json.dump(d, f)
-                    f.write("\n")
+                if data["label"] == ANTI_STEREOTYPE:
+                    json.dump(data, f_antistereotype)
+                    f_antistereotype.write("\n")
+                elif data["label"] == STEREOTYPE:
+                    json.dump(data, f_stereotype)
+                    f_stereotype.write("\n")
+                    cnt_stereoset[d["bias_type"]] += 1
+                elif data["label"] == UNRELATED:
+                    json.dump(data, f_unrelated)
+                    f_unrelated.write("\n")
+    print(cnt_stereoset)
 
 if __name__ == "__main__":
     argparser = argparse.ArgumentParser()
     argparser.add_argument("--cache_dir", type=str, default="~/unlearning_bias/.cache")
     argparser.add_argument("--data_path", type=str, default="McGill-NLP/stereoset")
-    argparser.add_argument("--data_name", type=str, default="intersentence")
     args = argparser.parse_args()
 
-    for data_name in ["intersentence", "intrasentence"]:
-        args.data_name = data_name
-        main(args)
+    main(args)
