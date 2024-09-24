@@ -1,6 +1,6 @@
 
 import json
-import pytorch_lightning as pl
+import lightning as L
 
 from pathlib import Path
 from collections import defaultdict
@@ -47,7 +47,7 @@ class StereoSetDataset(Dataset):
             'labels': labels.squeeze()
         }
 
-class StereoSetDataModule(pl.LightningDataModule):
+class StereoSetDataModule(L.LightningDataModule):
     ANTI_STEREOTYPE = "anti-stereotype"
     STEREOTYPE = "stereotype"
     UNRELATED = "unrelated"

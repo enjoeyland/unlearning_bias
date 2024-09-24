@@ -1,3 +1,5 @@
 name: negtaskvector
+fit_target: forget  # options: [forget, retain]
 forget_scaling_coef: 1.0
 retain_scaling_coef: 0.0
+run_name: BS${training.train_batch_size}_LR${training.learning_rate}_W${training.warmup_ratio}_S${training.seed}_${method.fit_target}

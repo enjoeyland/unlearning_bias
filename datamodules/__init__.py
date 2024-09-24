@@ -1,6 +1,7 @@
 from .flores import FLORESDataModule
 from .bmlama import BMLAMADataModule
 from .xnli import XNLIDataModule
+from .stereoset import StereoSetDataModule
 
 FLORES_LANGUAGES = FLORESDataModule.SUPPORTED_LANGUAGES
 BMLAMA_LANGUAGES_17 = BMLAMADataModule.SUPPORTED_LANGUAGES_17

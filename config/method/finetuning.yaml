@@ -1,2 +1,3 @@
 name : finetuning
-fit_target: both  # options: [both, forget, retain]
+fit_target: forget  # options: [forget, retain]
+run_name: BS${training.train_batch_size}_LR${training.learning_rate}_W${training.warmup_ratio}_S${training.seed}_${method.fit_target}

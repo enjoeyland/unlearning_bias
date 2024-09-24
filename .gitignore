@@ -5,6 +5,7 @@ results/
 .checkpoints/
 scripts/finding_hp.sh
 preprocess/*.jsonl
+outputs/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

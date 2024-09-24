@@ -1,15 +1,8 @@
 import hydra
 from omegaconf import DictConfig
 
-@hydra.main(version_base=None, config_path=".", config_name="config")
-def get_config(cfg: DictConfig):
-    # cfg 객체를 통해 설정 파일의 값을 읽을 수 있습니다.
-    print(f"Model: {cfg.model.model_name}, Method: {cfg.model.method}")
-    print(f"Task: {cfg.data.task}, Forget Language: {cfg.data.forget_lang}")
-    print(f"Shards: {cfg.sharding.shards}, Slices: {cfg.sharding.slices}")
-    print(f"Do training: {cfg.training.do_train}, Epochs: {cfg.training.epochs}")
-
-    assert 2 * cfg.training.epochs >= cfg.sharding.slices + 1, "Not enough epochs per slice"
+@hydra.main(version_base=None, config_path="config", config_name="config")
+def get_config(cfg: DictConfig) -> DictConfig:
     assert cfg.training.load_in_4bit + cfg.training.load_in_8bit <= 1, "Only one quantization method can be used"
 
     return cfg
