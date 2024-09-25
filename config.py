@@ -1,8 +1,13 @@
 import hydra
-from omegaconf import DictConfig
+from functools import reduce
+from omegaconf import OmegaConf, DictConfig
+
+OmegaConf.register_new_resolver("mul", lambda *args: reduce(lambda x, y: x * y, args))
 
 @hydra.main(version_base=None, config_path="config", config_name="config")
 def get_config(cfg: DictConfig) -> DictConfig:
+    print("batch_size", cfg.training.train_batch_size)
+
     assert cfg.training.load_in_4bit + cfg.training.load_in_8bit <= 1, "Only one quantization method can be used"
 
     return cfg

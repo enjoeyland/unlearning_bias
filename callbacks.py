@@ -5,56 +5,62 @@ from lightning.pytorch.callbacks import Callback, ModelCheckpoint
 from lightning.pytorch.callbacks.early_stopping import EarlyStopping
 
 class Callbacks:
-    def __init__(self, args):
-        self.output_dir = args.output_dir
+    def __init__(self, cfg):
+        self.output_dir = cfg.output_dir
 
-        self.max_tolerance = args.max_tolerance
-        if args.model_name in ["xglm-2.9B", "bloom-3b"] and args.method == "finetune":
-            self.every_n_epochs = args.epochs
+        self.max_tolerance = cfg.callbacks.max_tolerance
+        if cfg.method.name in ["negtaskvector", "finetune"]:
+            self.every_n_epochs = cfg.training.epochs
         else:
-            self.every_n_epochs = 5 if args.task != "xnli" else 1
+            self.every_n_epochs = 5 if cfg.task.name != "xnli" else 1
 
-        if args.task == "flores":
+        if cfg.task.name == "flores":
             self.monitor = "val/forget_xma"
             self.mode = "min"
             self.filename = "fxma={val/forget_xma:.4f}-fxppl={val/forget_xppl:.2f}-xppl={val/val_xppl:.2f}"
 
-            if args.method == "finetune":
+            if cfg.method.name == "finetune":
                 self.mode = "min"
-                self.monitor = f"val/{args.fit_target}_xppl"
-                if args.fit_target == "forget":
+                self.monitor = f"val/{cfg.method.fit_target}_xppl"
+                if cfg.method.fit_target == "forget":
                     self.filename = "fxppl={val/forget_xppl:.2f}-xppl={val/val_xppl:.2f}"
-                if args.fit_target == "retain":
+                if cfg.method.fit_target == "retain":
                     self.filename =  f"rxppl={{val/retain_xppl:.2f}}-xppl={{val/val_xppl:.2f}}"
         
-        elif "bmlama" in args.task:
+        elif "bmlama" in cfg.task.name:
             self.monitor = "val/forget_xpa"
             self.mode = "min"
             self.filename = "fxpa={val/forget_xpa:.4f}-fxppl={val/forget_xppl:.2f}-xppl={val/val_xppl:.2f}"
             
-            if args.method == "finetune":
+            if cfg.method.name == "finetune":
                 self.mode = "min"
-                self.monitor = f"val/{args.fit_target}_sent_xppl"
-                if args.fit_target == "forget":
+                self.monitor = f"val/{cfg.method.fit_target}_sent_xppl"
+                if cfg.method.fit_target == "forget":
                     self.filename = "fxppl={val/forget_sent_xppl:.2f}-xppl={val/val_sent_xppl:.2f}"
-                if args.fit_target == "retain":
+                if cfg.method.fit_target == "retain":
                     self.filename = f"rxppl={{val/retain_sent_xppl:.2f}}-xppl={{val/val_sent_xppl:.2f}}"
         
-        elif args.task == "xnli":
+        elif cfg.task.name == "xnli":
             self.monitor = "val_accuracy"
             self.mode = "max"
             self.filename = "best"
-        else:
-            raise ValueError(f"Task {args.task} not supported.")
-        
 
-        if "sisa "in args.method:
-            self.filename = f"shard{args.shard}-slice{args.sl}"
-        elif args.method == "finetune":
-            if args.fit_target == "forget":
+        elif cfg.task.name == "stereoset":
+            self.monitor = None
+            self.mode = "min"
+            if cfg.method.fit_target == "forget":
+                self.filename = "fppl={train/forget_sent_xppl:.2f}-ppl={train/sent_xppl:.2f}"
+            elif cfg.method.fit_target == "retain":
+                self.filename = f"rppl={{train/retain_sent_xppl:.2f}}-ppl={{train/val_sent_xppl:.2f}}"
+        else:
+            raise ValueError(f"Task {cfg.task.name} not supported.")        
+
+
+        if cfg.method.name == "finetune":
+            if cfg.method.fit_target == "forget":
                 self.filename = f"forget_{self.filename}"
-            elif args.fit_target == "retain":
-                self.filename = f"retain{args.retain_multiplier}_{self.filename}"
+            elif cfg.method.fit_target == "retain":
+                self.filename = f"retain{cfg.data.retain_multiplier}_{self.filename}"
         
 
     def get_checkpoint_callback(self):
@@ -72,12 +78,31 @@ class Callbacks:
         )
     
     def get_early_stopping(self):
+        if self.max_tolerance == 0 or self.max_tolerance is None:
+            return None
+        
         return EarlyStopping(
             monitor=self.monitor,
             mode=self.mode,
             patience=self.max_tolerance,
             verbose=True,
         )
+
+    def get_early_stop_step(self, stop_step):
+        return EarlyStopStepCallback(
+            stop_step=stop_step
+        )
+
+class EarlyStopStepCallback(Callback):
+    def __init__(self, stop_step):
+        super().__init__()
+        self.stop_step = stop_step
+
+    def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
+        if trainer.global_step >= self.stop_step:
+            print(f"Stopping training at step {trainer.global_step}")
+            trainer.should_stop = True
+
 
 class CustomMetricTracker(Callback):
     def __init__(self, args):

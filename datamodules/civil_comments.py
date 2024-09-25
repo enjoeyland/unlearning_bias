@@ -53,10 +53,10 @@ class CivilCommentsDataModule(L.LightningDataModule):
     def __init__(self, cfg, tokenizer):
         super().__init__()
         self.tokenizer = tokenizer
-        self.batch_size = cfg.batch_size
-        self.num_workers = cfg.num_workers
+        self.batch_size = cfg.training.per_device_batch_size
+        self.num_workers = cfg.data.num_workers
         self.cache_dir = cfg.cache_dir
-        self.data_path = Path(__file__).parent.parent / cfg.data_path
+        self.data_path = Path(__file__).parent.parent / cfg.task.data_path
 
 
     def prepare_data(self) -> None:

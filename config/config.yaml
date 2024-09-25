@@ -3,7 +3,7 @@ project_name: unlearning_bias
 defaults:
   - model: opt-1.3b
   - task: stereoset
-  - method: negtaskvector  # options: [original, negtaskvector, finetune]
+  - method: finetune  # options: [original, negtaskvector, finetune]
   - _self_
 
 cache_dir: .cache/
@@ -28,7 +28,7 @@ training:
   bf16: true
   
   optimizer: adamw  # options: [adam, adamw]
-  learning_rate: $(model.learning_rate)
+  learning_rate: ${model.learning_rate}
   lr_scheduler_type: linear  # options: [linear, cosine]
   warmup_ratio: 0.1
   epochs: 20
@@ -52,7 +52,7 @@ callbacks:
   eval_steps: 1.0
   max_tolerance: 3
 
-output_dir: .checkpoints/${model.name}/${dataset.name}/${method.name}/${method.run_name}
+output_dir: .checkpoints/${model.name}/${task.name}/${method.name}/${method.run_name}
 
 
 do_train: true
