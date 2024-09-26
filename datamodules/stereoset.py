@@ -93,7 +93,7 @@ class StereoSetDataModule(L.LightningDataModule):
             cache_dir=self.cache_dir,
         )["train"]
 
-        self.datasets = defaultdict(list)
+        self.datasets = {}
         if stage == 'fit' or stage is None:
             self.datasets["train"] = StereoSetDataset(data[self.STEREOTYPE], self.tokenizer, split='train')
 

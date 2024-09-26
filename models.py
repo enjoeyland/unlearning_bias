@@ -55,14 +55,9 @@ class UnlearningBiasModel(L.LightningModule):
             print(model)
             raise ValueError(f"Model {self.hparams.model.name} not supported.")
         
-        if self.hparams.task.name in ["xnli"]:
-            self.model = self._load_model("SEQ_CLS", target_modules)
-        elif self.hparams.task.name in ["stereoset"]:
-            self.model = self._load_model("CAUSAL_LM", target_modules)
-        else:
-            raise ValueError(f"Task {self.hparams.task.name} not supported.")
+        self.model = self._load_model(target_modules)
 
-    def _load_model(self, task_type, target_modules=None):
+    def _load_model(self, target_modules=None):
         model_kwargs = {}
 
         if "deepspeed" in self.hparams.training.dp_strategy:
@@ -80,13 +75,13 @@ class UnlearningBiasModel(L.LightningModule):
         if self.hparams.training.load_in_8bit:
             model_kwargs["load_in_8bit"] = True
 
-        if task_type == "SEQ_CLS":
+        if self.hparams.task.task_type == "SEQ_CLS":
             LM = AutoModelForSequenceClassification
             model_kwargs["num_labels"] = self.datamodule.num_classes
-        elif task_type == "CAUSAL_LM":
+        elif self.hparams.task.task_type == "CAUSAL_LM":
             LM = AutoModelForCausalLM
         else:
-            raise ValueError(f"Task type {task_type} not supported.")
+            raise ValueError(f"Task type {self.hparams.task.task_type} not supported.")
 
         model = LM.from_pretrained(
             self.hparams.model.hf,
@@ -101,7 +96,7 @@ class UnlearningBiasModel(L.LightningModule):
                 lora_alpha=16,
                 lora_dropout=0.1,
                 bias="none",
-                task_type=task_type,
+                task_type=self.hparams.task.task_type,
                 target_modules="all-linear" if self.hparams.training.use_qlora else target_modules,
                 inference_mode=not self.hparams.do_train
             )

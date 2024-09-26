@@ -11,11 +11,6 @@ print("Importing...")
 import lightning as L
 from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch.accelerators import find_usable_cuda_devices
-# from lightning.pytorch.strategies import FSDPStrategy, DeepSpeedStrategy
-
-# import torch
-# from transformers.models.mt5.modeling_mt5 import MT5Block
-# from torch.distributed.fsdp import MixedPrecision
 print("Done")
 
 from models import UnlearningBiasModel
@@ -45,20 +40,6 @@ def main(cfg, model_path=None):
     else:
         model = UnlearningBiasModel(cfg)
 
-
-    if cfg.training.dp_strategy == "fsdp":
-        if "mt5" in cfg.model.name:
-            pass
-            # strategy = FSDPStrategy(
-            #     auto_wrap_policy={MT5Block},
-            #     mixed_precision=MixedPrecision(param_dtype=torch.bfloat16, cast_forward_inputs=True) if args.bf16 else None,
-            #     sharding_strategy="FULL_SHARD",
-            # )
-        else:
-            raise NotImplementedError(f"FSDP is not implemented for {cfg.model.name}")
-    else:
-        strategy = cfg.training.dp_strategy
-
     if "deepspeed" in cfg.training.dp_strategy:
         deepspeed_weights_only(cfg.training.dp_strategy)
         update_deepspeed_initalize(cfg.training.dp_strategy, cfg.training.use_lora)
@@ -68,11 +49,11 @@ def main(cfg, model_path=None):
         # CustomMetricTracker(cfg),
         cb.get_checkpoint_callback(),
         cb.get_early_stopping(),
-        cb.get_early_stop_step(1500),
+        cb.get_early_stop_step(),
     ]
 
     trainer = L.Trainer(
-        strategy=strategy,
+        strategy=cfg.training.dp_strategy,
         devices=find_usable_cuda_devices(cfg.training.world_size),
         precision="bf16-mixed" if cfg.training.bf16 else "32-true",
         gradient_clip_val=1.0 if cfg.training.dp_strategy != "fsdp" else None,

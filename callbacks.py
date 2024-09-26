@@ -9,6 +9,8 @@ class Callbacks:
         self.output_dir = cfg.output_dir
 
         self.max_tolerance = cfg.callbacks.max_tolerance
+        self.stop_step = cfg.callbacks.early_stop_step
+
         if cfg.method.name in ["negtaskvector", "finetune"]:
             self.every_n_epochs = cfg.training.epochs
         else:
@@ -88,9 +90,9 @@ class Callbacks:
             verbose=True,
         )
 
-    def get_early_stop_step(self, stop_step):
+    def get_early_stop_step(self):
         return EarlyStopStepCallback(
-            stop_step=stop_step
+            stop_step=self.stop_step
         )
 
 class EarlyStopStepCallback(Callback):
@@ -99,7 +101,9 @@ class EarlyStopStepCallback(Callback):
         self.stop_step = stop_step
 
     def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
-        print(trainer.global_step)
+        if not self.stop_step:
+            return
+        
         if trainer.global_step >= self.stop_step:
             print(f"Stopping training at step {trainer.global_step}")
             trainer.should_stop = True

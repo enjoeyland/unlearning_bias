@@ -20,7 +20,7 @@ class CivilCommentsData:
     threat: float
 
 
-class StereoSetDataset(Dataset):
+class CivilCommentsDataset(Dataset):
     def __init__(self, data, tokenizer, split='train', max_length=512):
         self.data = data
         self.split = split
@@ -92,9 +92,9 @@ class CivilCommentsDataModule(L.LightningDataModule):
             cache_dir=self.cache_dir,
         )["train"]
         
-        self.datasets = defaultdict(list)
+        self.datasets = {}
         if stage == 'fit' or stage is None:
-            self.datasets["train"] = StereoSetDataset(data["social_bias"], self.tokenizer, split='train')
+            self.datasets["train"] = CivilCommentsDataset(data["social_bias"], self.tokenizer, split='train')
 
     def train_dataloader(self):
         return DataLoader(

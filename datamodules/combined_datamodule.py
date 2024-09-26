@@ -2,11 +2,9 @@ import lightning as L
 
 from pathlib import Path
 
-from torch.utils.data import DataLoader
-from datasets import concatenate_datasets
+from torch.utils.data import DataLoader, ConcatDataset
 
 class CombinedDataModule(L.LightningDataModule):
-    
     def __init__(self, cfg, tokenizer, data_modules=[]):
         super().__init__()
         self.tokenizer = tokenizer
@@ -26,7 +24,7 @@ class CombinedDataModule(L.LightningDataModule):
 
     def train_dataloader(self):
         return DataLoader(
-            concatenate_datasets([dm.dataset["train"] for dm in self.data_modules]),
+            ConcatDataset([dm.datasets["train"] for dm in self.data_modules]),
             batch_size=self.batch_size,
             num_workers=self.num_workers,
             pin_memory=True,
