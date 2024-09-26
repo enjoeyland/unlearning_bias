@@ -130,3 +130,28 @@ def installed_cuda_version():
     cuda_major, cuda_minor = release[:2]
     installed_cuda_version = ".".join(release[:2])
     return int(cuda_major), int(cuda_minor)
+
+def get_state_dict(ckpt):
+    from torch.nn import Module
+    model = get_model(ckpt)
+    if isinstance(model, dict) and 'state_dict' in model:
+        state_dict = model['state_dict']
+    elif isinstance(model, dict) and 'module' in model:
+        state_dict = model['module']
+    elif isinstance(model, Module):
+        model.to('cuda:0')
+        state_dict = model.state_dict()
+    return state_dict
+
+def get_model(ckpt):
+    import torch 
+    import os.path as osp
+    if isinstance(ckpt, str) and osp.exists(ckpt) and osp.isfile(ckpt):
+        model = torch.load(ckpt)
+    elif isinstance(ckpt, str) and osp.exists(ckpt) and osp.isdir(ckpt): # deepspeed checkpoint
+        # lightning.pytorch.utilities.deepspeed(ckpt, ckpt)
+        # model = torch.load(ckpt)
+        model = torch.load(f"{ckpt}/checkpoint/mp_rank_00_model_states.pt") # 없을 수도 있음
+    elif isinstance(ckpt, torch.nn.Module):
+        model = ckpt
+    return model

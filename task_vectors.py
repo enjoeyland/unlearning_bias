@@ -1,8 +1,5 @@
-import os.path as osp
-
 import torch
-
-
+from utils import get_state_dict, get_model
 
 class TaskVector():
     def __init__(self, pretrained_checkpoint=None, finetuned_checkpoint=None, vector=None):
@@ -17,8 +14,8 @@ class TaskVector():
         else:
             assert pretrained_checkpoint is not None and finetuned_checkpoint is not None
             with torch.no_grad():
-                pretrained_state_dict = self._get_state_dict(pretrained_checkpoint)
-                finetuned_state_dict = self._get_state_dict(finetuned_checkpoint)
+                pretrained_state_dict = get_state_dict(pretrained_checkpoint)
+                finetuned_state_dict = get_state_dict(finetuned_checkpoint)
 
                 self.vector = {}
                 for key in pretrained_state_dict:
@@ -75,8 +72,8 @@ class TaskVector():
     def apply_to(self, pretrained_checkpoint, scaling_coef=1.0):
         """Apply a task vector to a pretrained model."""
         with torch.no_grad():
-            pretrained_model = self._get_model(pretrained_checkpoint)
-            pretrained_state_dict = self._get_state_dict(pretrained_checkpoint)
+            pretrained_model = get_model(pretrained_checkpoint)
+            pretrained_state_dict = get_state_dict(pretrained_checkpoint)
             for key in pretrained_state_dict:
                 if key not in self.vector:
                     print(f'Warning: key {key} is present in the pretrained state dict but not in the task vector')
@@ -84,25 +81,6 @@ class TaskVector():
                 pretrained_state_dict[key] += scaling_coef * self.vector[key]
         return pretrained_model
     
-    def _get_state_dict(self, ckpt):
-        model = self._get_model(ckpt)
-        if isinstance(model, dict) and 'state_dict' in model:
-            state_dict = model['state_dict']
-        elif isinstance(model, dict) and 'module' in model:
-            state_dict = model['module']
-        elif isinstance(model, torch.nn.Module):
-            model.to('cuda:0')
-            state_dict = model.state_dict()
-        return state_dict
-    
-    def _get_model(self, ckpt):
-        if isinstance(ckpt, str) and osp.exists(ckpt) and osp.isfile(ckpt):
-            model = torch.load(ckpt)
-        elif isinstance(ckpt, str) and osp.exists(ckpt) and osp.isdir(ckpt): # deepspeed checkpoint
-            model = torch.load(f"{ckpt}/checkpoint/mp_rank_00_model_states.pt")
-        elif isinstance(ckpt, torch.nn.Module):
-            model = ckpt
-        return model
 
 if __name__ == "__main__":
     import lightning as L

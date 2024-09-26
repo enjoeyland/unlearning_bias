@@ -36,7 +36,7 @@ training:
 
   world_size: 2
   per_device_batch_size: 4
-  gradient_accumulation_steps: 4
+  gradient_accumulation_steps: 2
   train_batch_size: ${mul:${training.world_size}, ${training.per_device_batch_size}, ${training.gradient_accumulation_steps}}
 
 wandb:
@@ -55,7 +55,6 @@ callbacks:
   early_stop_step: 3000
 
 output_dir: .checkpoints/${model.name}/${task.name}/${method.name}/${method.run_name}
-
 
 do_train: true
 do_eval: false
