@@ -1,0 +1,8 @@
+name: combined_cc_ss
+target:
+  - civil_comments
+  - stereoset
+task_type: CAUSAL_LM # options: [CAUSAL_LM, SEQ_CLS]
+data_path: 
+  - data/civil_comments.json
+  - data/stereoset.json

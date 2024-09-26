@@ -9,7 +9,7 @@ from transformers.utils import logging
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 from pytorch_lightning.core.saving import save_hparams_to_yaml
 
-from datamodules import XNLIDataModule, FLORESDataModule, BMLAMADataModule, StereoSetDataModule
+from datamodules import XNLIDataModule, FLORESDataModule, BMLAMADataModule, StereoSetDataModule, CivilCommentsDataModule, CombinedDataModule
 from utils import installed_cuda_version
 
 logging.get_logger("transformers").setLevel(logging.ERROR)
@@ -19,15 +19,28 @@ class UnlearningBiasModel(L.LightningModule):
     def __init__(self, hparams):
         super().__init__()
         self.save_hyperparameters(hparams)
-        save_hparams_to_yaml(os.path.join(hparams.output_dir, "hparams.yaml"), hparams)
+        save_hparams_to_yaml(os.path.join(self.hparams.output_dir, "hparams.yaml"), self.hparams)
         
-        self.tokenizer = AutoTokenizer.from_pretrained(hparams.model.hf, cache_dir=hparams.cache_dir, clean_up_tokenization_spaces=True)
+        self.tokenizer = AutoTokenizer.from_pretrained(self.hparams.model.hf, cache_dir=self.hparams.cache_dir, clean_up_tokenization_spaces=True)
 
-        if hparams.task.name == "stereoset":
-            self.datamodule = StereoSetDataModule(hparams, self.tokenizer)
-        else:
-            raise NotImplementedError(f"Task {hparams.task} not implemented.")
+        self.datamodule = self.get_datamodule(self.hparams.task.name)
         self.model = None
+
+    def get_datamodule(self, task):
+        if "combined" in task:
+            data_path = self.hparams.task.data_path
+            datamodules = []
+            for i, target in enumerate(self.hparams.task.target):
+                self.hparams.task.data_path = data_path[i]
+                datamodules.append(self.get_datamodule(target))
+            return CombinedDataModule(self.hparams, self.tokenizer, datamodules)
+
+        if task == "stereoset":
+            return StereoSetDataModule(self.hparams, self.tokenizer)
+        elif task == "civil_comments":
+            return CivilCommentsDataModule(self.hparams, self.tokenizer)
+        else:
+            raise NotImplementedError(f"Task {task} not implemented.")
 
     def configure_model(self):
         if self.model is not None:
@@ -108,9 +121,21 @@ class UnlearningBiasModel(L.LightningModule):
     def training_step(self, batch, batch_idx):
         outputs = self(**batch)
         loss = outputs.loss
-        # dataset_name = self.datamodule.dataset_names["train"][self.current_epoch % len(self.datamodule.dataset_names["train"])]
-        # self._log_metrics("train", batch, outputs, loss, dataset_name)
+        self._log_metrics("train", batch, outputs, "train")
         return loss
+
+    def _log_metrics(self, split, batch, outputs, dataset_name):
+        loss = outputs.loss
+        metrics = { f"{dataset_name}_loss": loss }
+        if self.hparams.task in ["xnli"]:
+            preds = outputs.logits.argmax(dim=-1)
+            accuracy = (preds == batch["labels"]).float().mean()
+            metrics[f"{dataset_name}_accuracy"] = accuracy
+        elif self.hparams.task in ["stereoset"]:
+            ppl = torch.exp(loss)
+            metrics[f"{dataset_name}_ppl"] = ppl
+
+        self.log_dict(metrics, on_epoch=True, prog_bar=True, logger=True, sync_dist=True, add_dataloader_idx=False, batch_size=self.hparams.training.per_device_batch_size)
 
     def configure_optimizers(self):
         cuda_major, cuda_minor = installed_cuda_version()

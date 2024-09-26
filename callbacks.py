@@ -45,11 +45,11 @@ class Callbacks:
             self.mode = "max"
             self.filename = "best"
 
-        elif cfg.task.name == "stereoset":
+        elif cfg.task.name in ["stereoset", "combined_cc_ss"]:
             self.monitor = None
             self.mode = "min"
             if cfg.method.fit_target == "forget":
-                self.filename = "fppl={train/forget_sent_xppl:.2f}-ppl={train/sent_xppl:.2f}"
+                self.filename = "fppl={train_ppl:.2f}"
             elif cfg.method.fit_target == "retain":
                 self.filename = f"rppl={{train/retain_sent_xppl:.2f}}-ppl={{train/val_sent_xppl:.2f}}"
         else:
@@ -79,7 +79,7 @@ class Callbacks:
     
     def get_early_stopping(self):
         if self.max_tolerance == 0 or self.max_tolerance is None:
-            return None
+            return Callback()
         
         return EarlyStopping(
             monitor=self.monitor,
@@ -99,6 +99,7 @@ class EarlyStopStepCallback(Callback):
         self.stop_step = stop_step
 
     def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
+        print(trainer.global_step)
         if trainer.global_step >= self.stop_step:
             print(f"Stopping training at step {trainer.global_step}")
             trainer.should_stop = True

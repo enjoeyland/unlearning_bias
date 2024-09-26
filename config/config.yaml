@@ -2,7 +2,7 @@ project_name: unlearning_bias
 
 defaults:
   - model: opt-1.3b
-  - task: stereoset
+  - task: combined_cc_ss
   - method: finetune  # options: [original, negtaskvector, finetune]
   - _self_
 
@@ -18,39 +18,39 @@ data:
 
 training:
   seed: 42
-  wandb_mode: online  # options: [disabled, online, offline]
+  wandb_mode: disabled  # options: [disabled, online, offline]
   
   use_lora: true
   use_qlora: false
   load_in_8bit: false
   load_in_4bit: false
-  dp_strategy: auto  # options: [auto, ddp, fsdp, deepspeed, deepspeed_stage_1, deepspeed_stage_2, deepspeed_stage_2_offload, deepspeed_stage_3, deepspeed_stage_3_offload]
+  dp_strategy: deepspeed_stage_3  # options: [auto, ddp, fsdp, deepspeed, deepspeed_stage_1, deepspeed_stage_2, deepspeed_stage_2_offload, deepspeed_stage_3, deepspeed_stage_3_offload]
   bf16: true
   
   optimizer: adamw  # options: [adam, adamw]
   learning_rate: ${model.learning_rate}
   lr_scheduler_type: linear  # options: [linear, cosine]
   warmup_ratio: 0.1
-  epochs: 20
+  epochs: 1
 
-  world_size: 1
-  per_device_batch_size: 16
+  world_size: 2
+  per_device_batch_size: 4
   gradient_accumulation_steps: 4
-  train_batch_size: ${training.world_size} * ${training.per_device_batch_size} * ${training.gradient_accumulation_steps}
+  train_batch_size: ${mul:${training.world_size}, ${training.per_device_batch_size}, ${training.gradient_accumulation_steps}}
 
 wandb:
   project: ${project_name}
   tags: 
     - ${model.name}
-    - ${dataset.name}
+    - ${task.name}
     - ${method.name}]
-  group: ${model.name}/${dataset.name}/${method.name}
+  group: ${model.name}/${task.name}/${method.name}
   name: ${method.run_name}
 
 callbacks:
   logging_steps: 500
   eval_steps: 1.0
-  max_tolerance: 3
+  max_tolerance: null
 
 output_dir: .checkpoints/${model.name}/${task.name}/${method.name}/${method.run_name}
 

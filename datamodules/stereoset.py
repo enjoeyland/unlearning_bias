@@ -1,4 +1,3 @@
-
 import json
 import lightning as L
 
@@ -103,6 +102,7 @@ class StereoSetDataModule(L.LightningDataModule):
             self.datasets["train"],
             batch_size=self.batch_size,
             num_workers=self.num_workers,
+            pin_memory=True,
             shuffle=True
         )
 

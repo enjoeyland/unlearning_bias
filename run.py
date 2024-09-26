@@ -67,7 +67,7 @@ def main(cfg, model_path=None):
     callbacks = [
         # CustomMetricTracker(cfg),
         cb.get_checkpoint_callback(),
-        # cb.get_early_stopping(),
+        cb.get_early_stopping(),
         cb.get_early_stop_step(1500),
     ]
 
