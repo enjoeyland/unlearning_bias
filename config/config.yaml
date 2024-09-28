@@ -2,7 +2,7 @@ project_name: unlearning_bias
 
 defaults:
   - model: opt-1.3b
-  - task: combined_cc_ss
+  - task: combined_cc_ss_cp
   - method: finetune  # options: [original, negtaskvector, finetune]
   - _self_
 
@@ -18,7 +18,7 @@ data:
 
 training:
   seed: 42
-  wandb_mode: disabled  # options: [disabled, online, offline]
+  logger: csv  # options: [null, wandb, csv]
   
   use_lora: true
   use_qlora: false
@@ -39,23 +39,19 @@ training:
   gradient_accumulation_steps: 2
   train_batch_size: ${mul:${training.world_size}, ${training.per_device_batch_size}, ${training.gradient_accumulation_steps}}
 
-wandb:
+logging:
   project: ${project_name}
-  tags: 
-    - ${model.name}
-    - ${task.name}
-    - ${method.name}]
   group: ${model.name}/${task.name}/${method.name}
   name: ${method.run_name}
+  logging_steps: 500
 
 callbacks:
-  logging_steps: 500
   eval_steps: 1.0
   max_tolerance: null
-  early_stop_step: 3000
+  early_stop_step: 3000 # depend on model
 
 output_dir: .checkpoints/${model.name}/${task.name}/${method.name}/${method.run_name}
 
-do_train: true
+do_train: true # depend on method
 do_eval: false
 do_test: false

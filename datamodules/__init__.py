@@ -3,6 +3,7 @@ from .bmlama import BMLAMADataModule
 from .xnli import XNLIDataModule
 from .stereoset import StereoSetDataModule
 from .civil_comments import CivilCommentsDataModule
+from .crows_pairs import CrowsPairsDataModule
 from .combined_datamodule import CombinedDataModule
 
 FLORES_LANGUAGES = FLORESDataModule.SUPPORTED_LANGUAGES

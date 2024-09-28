@@ -7,3 +7,5 @@ load_from:
   forget: .checkpoints/${model.name}/${task.name}/finetune/${method.run_name}_forget
   retain: .checkpoints/${model.name}/${task.name}/finetune/${method.run_name}_retain
 save_model: true
+# do_train: false
+# do_test: true

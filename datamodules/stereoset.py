@@ -58,6 +58,7 @@ class StereoSetDataModule(L.LightningDataModule):
         self.num_workers = cfg.data.num_workers
         self.cache_dir = cfg.cache_dir
         self.data_path = Path(__file__).parent.parent / cfg.task.data_path
+        self.max_length = cfg.data.max_length
 
 
     def prepare_data(self) -> None:
@@ -86,7 +87,7 @@ class StereoSetDataModule(L.LightningDataModule):
         with open(self.data_path, "w") as f:
             json.dump(data, f, indent=2)
 
-    def setup(self, stage=None):
+    def setup(self, stage: str):
         data = load_dataset(
             "json", 
             data_files=str(self.data_path.resolve()),
@@ -94,8 +95,9 @@ class StereoSetDataModule(L.LightningDataModule):
         )["train"]
 
         self.datasets = {}
-        if stage == 'fit' or stage is None:
-            self.datasets["train"] = StereoSetDataset(data[self.STEREOTYPE], self.tokenizer, split='train')
+        if stage == "fit":
+            self.datasets["train"] = StereoSetDataset(data[self.STEREOTYPE], self.tokenizer, split='train', max_length=self.max_length)
+
 
     def train_dataloader(self):
         return DataLoader(
@@ -108,16 +110,19 @@ class StereoSetDataModule(L.LightningDataModule):
 
 if __name__ == "__main__":
     cfg = {
-        "batch_size": 32,
-        "num_workers": 4,
-        "cache_dir": "~/unlearning_bias/.cache",
-        "data_path": "data/stereoset.json"
+        "training": {"per_device_batch_size":4,},
+        "cache_dir": "~/workspace/unlearning_bias/.cache",
+        "task": {"data_path": "data/stereoset.json"},
+        "data": {
+            "max_length": 512,
+            "num_workers": 4,
+        },
     }
-    import argparse
-    cfg = argparse.Namespace(**cfg)
+    from omegaconf import OmegaConf
+    cfg = OmegaConf.create(cfg)
 
     dm = StereoSetDataModule(cfg, tokenizer=None)
     dm.prepare_data()
-    dm.setup()
+    dm.setup('fit')
     dl = dm.train_dataloader()
  

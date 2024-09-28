@@ -9,7 +9,7 @@ from transformers.utils import logging
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 from pytorch_lightning.core.saving import save_hparams_to_yaml
 
-from datamodules import XNLIDataModule, FLORESDataModule, BMLAMADataModule, StereoSetDataModule, CivilCommentsDataModule, CombinedDataModule
+from datamodules import XNLIDataModule, FLORESDataModule, BMLAMADataModule, StereoSetDataModule, CivilCommentsDataModule, CrowsPairsDataModule, CombinedDataModule
 from utils import installed_cuda_version
 
 logging.get_logger("transformers").setLevel(logging.ERROR)
@@ -23,22 +23,23 @@ class UnlearningBiasModel(L.LightningModule):
         
         self.tokenizer = AutoTokenizer.from_pretrained(self.hparams.model.hf, cache_dir=self.hparams.cache_dir, clean_up_tokenization_spaces=True)
 
-        self.datamodule = self.get_datamodule(self.hparams.task.name)
+        self.datamodule = self._get_datamodule(self.hparams.task.name)
         self.model = None
 
-    def get_datamodule(self, task):
+    def _get_datamodule(self, task):
         if "combined" in task:
-            data_path = self.hparams.task.data_path
             datamodules = []
-            for i, target in enumerate(self.hparams.task.target):
-                self.hparams.task.data_path = data_path[i]
-                datamodules.append(self.get_datamodule(target))
+            for target, data_path in zip(self.hparams.task.targets, self.hparams.task.data_paths):
+                self.hparams.task.data_path = data_path
+                datamodules.append(self._get_datamodule(target))
             return CombinedDataModule(self.hparams, self.tokenizer, datamodules)
 
         if task == "stereoset":
             return StereoSetDataModule(self.hparams, self.tokenizer)
         elif task == "civil_comments":
             return CivilCommentsDataModule(self.hparams, self.tokenizer)
+        elif task == "crows_pairs":
+            return CrowsPairsDataModule(self.hparams, self.tokenizer)
         else:
             raise NotImplementedError(f"Task {task} not implemented.")
 
@@ -119,14 +120,20 @@ class UnlearningBiasModel(L.LightningModule):
         self._log_metrics("train", batch, outputs, "train")
         return loss
 
+    def test_step(self, batch, batch_idx, dataloader_idx=0):
+        outputs = self(**batch)
+        loss = outputs.loss
+        self._log_metrics("test", batch, outputs, "test")
+        return loss
+
     def _log_metrics(self, split, batch, outputs, dataset_name):
         loss = outputs.loss
         metrics = { f"{dataset_name}_loss": loss }
-        if self.hparams.task in ["xnli"]:
+        if self.hparams.task.task_type == "SEQ_CLS":
             preds = outputs.logits.argmax(dim=-1)
             accuracy = (preds == batch["labels"]).float().mean()
             metrics[f"{dataset_name}_accuracy"] = accuracy
-        elif self.hparams.task in ["stereoset"]:
+        elif self.hparams.task.task_type == "CAUSAL_LM":
             ppl = torch.exp(loss)
             metrics[f"{dataset_name}_ppl"] = ppl
 

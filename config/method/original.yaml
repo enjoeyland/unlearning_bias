@@ -1,0 +1,5 @@
+name: original
+fit_target: null  # options: [forget, retain]
+run_name: BS${training.train_batch_size}_LR${training.learning_rate}_W${training.warmup_ratio}_S${training.seed}
+# do_train: false
+# do_test: true

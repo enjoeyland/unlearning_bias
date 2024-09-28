@@ -47,13 +47,11 @@ class Callbacks:
             self.mode = "max"
             self.filename = "best"
 
-        elif cfg.task.name in ["stereoset", "combined_cc_ss"]:
+        elif cfg.task.name in ["stereoset"] or "combined" in cfg.task.name:
             self.monitor = None
             self.mode = "min"
             if cfg.method.fit_target == "forget":
                 self.filename = "fppl={train_ppl:.2f}"
-            elif cfg.method.fit_target == "retain":
-                self.filename = f"rppl={{train/retain_sent_xppl:.2f}}-ppl={{train/val_sent_xppl:.2f}}"
         else:
             raise ValueError(f"Task {cfg.task.name} not supported.")        
 

@@ -1,0 +1,3 @@
+name: crows_pairs
+task_type: CAUSAL_LM # options: [CAUSAL_LM, SEQ_CLS]
+data_path: data/crows_pairs.json

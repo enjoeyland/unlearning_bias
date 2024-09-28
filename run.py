@@ -9,7 +9,7 @@ from omegaconf import OmegaConf
 
 print("Importing...")
 import lightning as L
-from lightning.pytorch.loggers import WandbLogger
+from lightning.pytorch.loggers import WandbLogger, CSVLogger
 from lightning.pytorch.accelerators import find_usable_cuda_devices
 print("Done")
 
@@ -27,13 +27,19 @@ def main(cfg, model_path=None):
 
     L.seed_everything(cfg.training.seed, workers=True)
 
-    wandb_logger = WandbLogger(
-        project=cfg.wandb.project,
-        group=cfg.wandb.group,
-        name=cfg.wandb.name,
-        config=OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True),
-        mode=cfg.training.wandb_mode,
-    )
+    logger = None
+    if cfg.training.logger == "wandb":
+        logger = WandbLogger(
+            project=cfg.logging.project,
+            group=cfg.logging.group,
+            name=cfg.logging.name,
+            config=OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True),
+        )
+    elif cfg.training.logger == "csv":
+        logger = CSVLogger(
+            save_dir=cfg.output_dir,
+            name=cfg.logging.name
+        )
 
     if model_path:
         model = UnlearningBiasModel.load_from_checkpoint(model_path, hparams=cfg)
@@ -46,6 +52,7 @@ def main(cfg, model_path=None):
 
     cb = Callbacks(cfg)
     callbacks = [
+        *model.callbacks,
         # CustomMetricTracker(cfg),
         cb.get_checkpoint_callback(),
         cb.get_early_stopping(),
@@ -60,8 +67,8 @@ def main(cfg, model_path=None):
         accumulate_grad_batches=cfg.training.gradient_accumulation_steps,
         max_epochs=cfg.training.epochs,
         val_check_interval=cfg.callbacks.eval_steps,
-        logger=wandb_logger,
-        log_every_n_steps=cfg.callbacks.logging_steps,
+        logger=logger,
+        log_every_n_steps=cfg.logging.logging_steps,
         callbacks=callbacks,
         default_root_dir=cfg.output_dir,
         reload_dataloaders_every_n_epochs=0, # for unlearning

@@ -24,9 +24,37 @@ class CombinedDataModule(L.LightningDataModule):
 
     def train_dataloader(self):
         return DataLoader(
-            ConcatDataset([dm.datasets["train"] for dm in self.data_modules]),
+            ConcatDataset([dm.datasets["train"] for dm in self.data_modules if "train" in dm.datasets]),
             batch_size=self.batch_size,
             num_workers=self.num_workers,
             pin_memory=True,
             shuffle=True
         )
+    
+    def val_dataloader(self):
+        valid_data = []
+        for dm in self.data_modules:
+            if "valid" in dm.datasets:
+                valid_data.extend(dm.datasets["valid"])
+                
+        return [DataLoader(
+            vd,
+            batch_size=self.batch_size,
+            num_workers=self.num_workers,
+            pin_memory=True,
+            shuffle=False
+        ) for vd in valid_data]
+
+    def test_dataloader(self):
+        test_data = []
+        for dm in self.data_modules:
+            if "test" in dm.datasets:
+                test_data.extend(dm.datasets["test"])
+
+        return [DataLoader(
+            td,
+            batch_size=self.batch_size,
+            num_workers=self.num_workers,
+            pin_memory=True,
+            shuffle=False
+        ) for td in test_data]
