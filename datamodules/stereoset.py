@@ -1,11 +1,12 @@
 import json
-import lightning as L
 
 from pathlib import Path
 from collections import defaultdict
 from dataclasses import dataclass, asdict
 from torch.utils.data import Dataset, DataLoader
 from datasets import load_dataset, concatenate_datasets
+
+from metric_logging import MetricDataModule
 
 @dataclass
 class StereoSetData:
@@ -46,7 +47,7 @@ class StereoSetDataset(Dataset):
             'labels': labels.squeeze()
         }
 
-class StereoSetDataModule(L.LightningDataModule):
+class StereoSetDataModule(MetricDataModule):
     ANTI_STEREOTYPE = "anti-stereotype"
     STEREOTYPE = "stereotype"
     UNRELATED = "unrelated"
@@ -59,7 +60,6 @@ class StereoSetDataModule(L.LightningDataModule):
         self.cache_dir = cfg.cache_dir
         self.data_path = Path(__file__).parent.parent / cfg.task.data_path
         self.max_length = cfg.data.max_length
-
 
     def prepare_data(self) -> None:
         if self.data_path.exists():

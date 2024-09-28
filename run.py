@@ -8,7 +8,7 @@ from functools import reduce
 from omegaconf import OmegaConf
 
 print("Importing...")
-import lightning as L
+from lightning import Trainer, seed_everything
 from lightning.pytorch.loggers import WandbLogger, CSVLogger
 from lightning.pytorch.accelerators import find_usable_cuda_devices
 print("Done")
@@ -25,7 +25,7 @@ OmegaConf.register_new_resolver("mul", lambda *args: reduce(lambda x, y: x * y, 
 def main(cfg, model_path=None):
     os.makedirs(cfg.output_dir, exist_ok=True)
 
-    L.seed_everything(cfg.training.seed, workers=True)
+    seed_everything(cfg.training.seed, workers=True)
 
     logger = None
     if cfg.training.logger == "wandb":
@@ -37,8 +37,9 @@ def main(cfg, model_path=None):
         )
     elif cfg.training.logger == "csv":
         logger = CSVLogger(
-            save_dir=cfg.output_dir,
-            name=cfg.logging.name
+            save_dir=cfg.logging.log_dir,
+            name=cfg.logging.name,
+            flush_logs_every_n_steps=10,
         )
 
     if model_path:
@@ -52,14 +53,14 @@ def main(cfg, model_path=None):
 
     cb = Callbacks(cfg)
     callbacks = [
-        *model.callbacks,
+        model.metric_logger,
         # CustomMetricTracker(cfg),
         cb.get_checkpoint_callback(),
         cb.get_early_stopping(),
         cb.get_early_stop_step(),
     ]
 
-    trainer = L.Trainer(
+    trainer = Trainer(
         strategy=cfg.training.dp_strategy,
         devices=find_usable_cuda_devices(cfg.training.world_size),
         precision="bf16-mixed" if cfg.training.bf16 else "32-true",

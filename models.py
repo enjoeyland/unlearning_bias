@@ -1,8 +1,8 @@
 import os
 import torch
 import deepspeed
-import lightning as L
 
+from lightning import LightningModule
 from torchmetrics import Accuracy
 from transformers import AutoTokenizer, AutoModelForSequenceClassification, AutoModelForCausalLM, get_linear_schedule_with_warmup, get_cosine_schedule_with_warmup, BitsAndBytesConfig
 from transformers.utils import logging
@@ -10,12 +10,13 @@ from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 from pytorch_lightning.core.saving import save_hparams_to_yaml
 
 from datamodules import XNLIDataModule, FLORESDataModule, BMLAMADataModule, StereoSetDataModule, CivilCommentsDataModule, CrowsPairsDataModule, CombinedDataModule
+from metric_logging import PrefixLogger, MetricLogger
 from utils import installed_cuda_version
 
 logging.get_logger("transformers").setLevel(logging.ERROR)
 
 
-class UnlearningBiasModel(L.LightningModule):
+class UnlearningBiasModel(LightningModule):
     def __init__(self, hparams):
         super().__init__()
         self.save_hyperparameters(hparams)
@@ -23,6 +24,7 @@ class UnlearningBiasModel(L.LightningModule):
         
         self.tokenizer = AutoTokenizer.from_pretrained(self.hparams.model.hf, cache_dir=self.hparams.cache_dir, clean_up_tokenization_spaces=True)
 
+        self.prefix_logger = PrefixLogger()
         self.datamodule = self._get_datamodule(self.hparams.task.name)
         self.model = None
 
@@ -39,9 +41,13 @@ class UnlearningBiasModel(L.LightningModule):
         elif task == "civil_comments":
             return CivilCommentsDataModule(self.hparams, self.tokenizer)
         elif task == "crows_pairs":
-            return CrowsPairsDataModule(self.hparams, self.tokenizer)
+            return CrowsPairsDataModule(self.hparams, self.tokenizer, self.prefix_logger)
         else:
             raise NotImplementedError(f"Task {task} not implemented.")
+
+    @property
+    def metric_logger(self) -> MetricLogger:
+        return self.datamodule.metric_logger
 
     def configure_model(self):
         if self.model is not None:
@@ -117,13 +123,13 @@ class UnlearningBiasModel(L.LightningModule):
     def training_step(self, batch, batch_idx):
         outputs = self(**batch)
         loss = outputs.loss
-        self._log_metrics("train", batch, outputs, "train")
+        self.metric_logger.on_training_step(self, outputs, batch, batch_idx)
         return loss
-
+    
     def test_step(self, batch, batch_idx, dataloader_idx=0):
         outputs = self(**batch)
         loss = outputs.loss
-        self._log_metrics("test", batch, outputs, "test")
+        self.metric_logger.on_test_step(self, outputs, batch, batch_idx, dataloader_idx)
         return loss
 
     def _log_metrics(self, split, batch, outputs, dataset_name):
@@ -137,7 +143,7 @@ class UnlearningBiasModel(L.LightningModule):
             ppl = torch.exp(loss)
             metrics[f"{dataset_name}_ppl"] = ppl
 
-        self.log_dict(metrics, on_epoch=True, prog_bar=True, logger=True, sync_dist=True, add_dataloader_idx=False, batch_size=self.hparams.training.per_device_batch_size)
+        self.log_dict(metrics, on_epoch=True, prog_bar=True, logger=True, add_dataloader_idx=False, batch_size=self.hparams.training.per_device_batch_size)
 
     def configure_optimizers(self):
         cuda_major, cuda_minor = installed_cuda_version()
@@ -186,7 +192,7 @@ class UnlearningBiasModel(L.LightningModule):
             },
         }
 
-class MultilingualModel(L.LightningModule):
+class MultilingualModel(LightningModule):
     def __init__(self, hparams):
         super().__init__()
         self.save_hyperparameters(hparams)
@@ -480,7 +486,7 @@ class MultilingualModel(L.LightningModule):
         return model
 
 
-class ShardEnsembleModel(L.LightningModule):
+class ShardEnsembleModel(LightningModule):
     def __init__(self, models, hparams):
         super().__init__()
         self.models = models

@@ -43,6 +43,7 @@ logging:
   project: ${project_name}
   group: ${model.name}/${task.name}/${method.name}
   name: ${method.run_name}
+  log_dir: .logs/${model.name}/${task.name}/${method.name}
   logging_steps: 500
 
 callbacks:

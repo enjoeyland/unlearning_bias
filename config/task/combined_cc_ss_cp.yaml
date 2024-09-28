@@ -1,5 +1,5 @@
 name: combined_cc_ss_cp
-target:
+targets:
   - civil_comments
   - stereoset
   - crows_pairs
@@ -8,3 +8,4 @@ data_paths:
   - data/civil_comments.json
   - data/stereoset.json
   - data/crows_pairs.json
+data_path: null

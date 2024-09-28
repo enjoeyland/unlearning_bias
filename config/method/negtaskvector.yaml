@@ -9,3 +9,4 @@ load_from:
 save_model: true
 # do_train: false
 # do_test: true
+#  python run.py method=negtaskvector do_train=false do_test=true training.world_size=1 training.per_device_batch_size=16 training.gradient_accumulation_steps=1

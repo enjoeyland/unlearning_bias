@@ -1,12 +1,12 @@
-
 import json
-import lightning as L
 
 from pathlib import Path
 from collections import defaultdict
 from dataclasses import dataclass, asdict
 from torch.utils.data import Dataset, DataLoader
 from datasets import load_dataset
+
+from metric_logging import MetricDataModule
 
 @dataclass
 class CivilCommentsData:
@@ -49,7 +49,7 @@ class CivilCommentsDataset(Dataset):
             'labels': labels.squeeze()
         }
 
-class CivilCommentsDataModule(L.LightningDataModule):
+class CivilCommentsDataModule(MetricDataModule):
     def __init__(self, cfg, tokenizer):
         super().__init__()
         self.tokenizer = tokenizer
@@ -58,7 +58,6 @@ class CivilCommentsDataModule(L.LightningDataModule):
         self.cache_dir = cfg.cache_dir
         self.data_path = Path(__file__).parent.parent / cfg.task.data_path
         self.max_length = cfg.data.max_length
-
 
     def prepare_data(self) -> None:
         if self.data_path.exists():
