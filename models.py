@@ -8,10 +8,12 @@ from transformers import AutoTokenizer, AutoModelForSequenceClassification, Auto
 from transformers.utils import logging
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 from pytorch_lightning.core.saving import save_hparams_to_yaml
+from torch.nn import ModuleDict, ModuleList 
+
 
 from datamodules import XNLIDataModule, FLORESDataModule, BMLAMADataModule, StereoSetDataModule, CivilCommentsDataModule, CrowsPairsDataModule, CombinedDataModule
-from metric_logging import PrefixLogger, MetricLogger
 from utils import installed_cuda_version
+from datamodules.crows_pairs import SentProbMetric, BiasScoreMetric
 
 logging.get_logger("transformers").setLevel(logging.ERROR)
 
@@ -24,8 +26,8 @@ class UnlearningBiasModel(LightningModule):
         
         self.tokenizer = AutoTokenizer.from_pretrained(self.hparams.model.hf, cache_dir=self.hparams.cache_dir, clean_up_tokenization_spaces=True)
 
-        self.prefix_logger = PrefixLogger()
         self.datamodule = self._get_datamodule(self.hparams.task.name)
+        self.test_metrics = ModuleList([ModuleDict({"sent_probs": SentProbMetric()}), ModuleDict({"sent_probs": SentProbMetric()}), ModuleDict({"bias_score": BiasScoreMetric()})])
         self.model = None
 
     def _get_datamodule(self, task):
@@ -41,13 +43,9 @@ class UnlearningBiasModel(LightningModule):
         elif task == "civil_comments":
             return CivilCommentsDataModule(self.hparams, self.tokenizer)
         elif task == "crows_pairs":
-            return CrowsPairsDataModule(self.hparams, self.tokenizer, self.prefix_logger)
+            return CrowsPairsDataModule(self.hparams, self.tokenizer)
         else:
             raise NotImplementedError(f"Task {task} not implemented.")
-
-    @property
-    def metric_logger(self) -> MetricLogger:
-        return self.datamodule.metric_logger
 
     def configure_model(self):
         if self.model is not None:
@@ -129,8 +127,28 @@ class UnlearningBiasModel(LightningModule):
     def test_step(self, batch, batch_idx, dataloader_idx=0):
         outputs = self(**batch)
         loss = outputs.loss
-        self.metric_logger.on_test_step(self, outputs, batch, batch_idx, dataloader_idx)
+        if self.hparams.task.name == "crows_pairs":
+            self.test_metrics[dataloader_idx]["sent_probs"].update(outputs, batch)
+            # self.log("sent_probs", self.metrics["sent_probs"], on_step=False, on_epoch=True,  logger=True, add_dataloader_idx=False, batch_size=batch["input_ids"].size(0))
+        # self.metric_logger.on_test_step(self, outputs, batch, batch_idx, dataloader_idx)
+        self.log_dict({"test/loss": loss}, on_epoch=True, prog_bar=True, logger=True, add_dataloader_idx=True, batch_size=batch["input_ids"].size(0))
         return loss
+
+    def on_test_epoch_end(self):
+        metrics = {}
+        if self.hparams.task.name == "crows_pairs":
+            self.test_metrics[2]["bias_score"].update("stereotype", self.test_metrics[0]["sent_probs"].compute())
+            metrics["test/stereo_probs"] = self.test_metrics[0]["sent_probs"].compute().mean()
+            self.test_metrics[2]["bias_score"].update("anti-stereotype", self.test_metrics[1]["sent_probs"].compute())
+            metrics["test/antistereo_probs"] = self.test_metrics[1]["sent_probs"].compute().mean()
+            metrics["test/bias_score"] = self.test_metrics[2]["bias_score"].compute()
+
+            self.log_dict(metrics, logger=True, add_dataloader_idx=False)
+
+            self.test_metrics[0]["sent_probs"].reset()
+            self.test_metrics[0]["sent_probs"].reset()
+            self.test_metrics[2]["bias_score"].reset()
+
 
     def _log_metrics(self, split, batch, outputs, dataset_name):
         loss = outputs.loss

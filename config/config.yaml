@@ -53,6 +53,6 @@ callbacks:
 
 output_dir: .checkpoints/${model.name}/${task.name}/${method.name}/${method.run_name}
 
-do_train: true # depend on method
+do_train: true
 do_eval: false
 do_test: false

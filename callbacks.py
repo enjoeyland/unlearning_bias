@@ -47,7 +47,7 @@ class Callbacks:
             self.mode = "max"
             self.filename = "best"
 
-        elif cfg.task.name in ["stereoset"] or "combined" in cfg.task.name:
+        elif cfg.task.name in ["stereoset", "crows_pairs"] or "combined" in cfg.task.name:
             self.monitor = None
             self.mode = "min"
             if cfg.method.fit_target == "forget":
