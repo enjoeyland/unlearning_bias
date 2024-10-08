@@ -5,6 +5,7 @@ from collections import defaultdict
 from dataclasses import dataclass, asdict
 from torch.utils.data import Dataset, DataLoader
 from datasets import load_dataset, concatenate_datasets
+from transformers import PreTrainedTokenizer
 
 from metric_logging import MetricDataModule
 
@@ -19,7 +20,7 @@ class StereoSetData:
 
 
 class StereoSetDataset(Dataset):
-    def __init__(self, data, tokenizer, split='train', max_length=512):
+    def __init__(self, data, tokenizer: PreTrainedTokenizer, split='train', max_length=128):
         self.data = data
         self.split = split
         self.tokenizer = tokenizer
@@ -30,8 +31,13 @@ class StereoSetDataset(Dataset):
 
     def __getitem__(self, idx):
         item = self.data[idx]
+
+        prompt = item['sentence']
+        if "BLANK" not in item['context']:
+            prompt = f"{item['context']} {prompt}"
+
         inputs = self.tokenizer(
-            f"{item['context']} {item['sentence']}",
+            prompt,
             padding='max_length',
             max_length=self.max_length,
             truncation=True,
@@ -59,7 +65,6 @@ class StereoSetDataModule(MetricDataModule):
         self.num_workers = cfg.data.num_workers
         self.cache_dir = cfg.cache_dir
         self.data_path = Path(__file__).parent.parent / cfg.task.data_path
-        self.max_length = cfg.data.max_length
 
     def prepare_data(self) -> None:
         if self.data_path.exists():
@@ -71,6 +76,7 @@ class StereoSetDataModule(MetricDataModule):
         dataset_inter = load_dataset("McGill-NLP/stereoset", "intersentence", cache_dir=self.cache_dir)
         dataset_intra = load_dataset("McGill-NLP/stereoset", "intrasentence", cache_dir=self.cache_dir)
         
+        max_length = 0
         data = defaultdict(list)
         for item_data in concatenate_datasets([dataset_inter["validation"], dataset_intra["validation"]]):
             for i in range(len(item_data["sentences"]["sentence"])):
@@ -83,6 +89,8 @@ class StereoSetDataModule(MetricDataModule):
                     target=item_data["target"],
                 )
                 data[label_name[item_entry.label]].append(asdict(item_entry))
+                max_length = max(max_length, len(item_entry.context.split()) + len(item_entry.sentence.split()))
+        print(f"Max length: {max_length}")
 
         with open(self.data_path, "w") as f:
             json.dump(data, f, indent=2)
@@ -96,7 +104,7 @@ class StereoSetDataModule(MetricDataModule):
 
         self.datasets = {}
         if stage == "fit":
-            self.datasets["train"] = StereoSetDataset(data[self.STEREOTYPE], self.tokenizer, split='train', max_length=self.max_length)
+            self.datasets["train"] = StereoSetDataset(data[self.STEREOTYPE], self.tokenizer, split='train', max_length=256)
 
 
     def train_dataloader(self):
@@ -113,10 +121,7 @@ if __name__ == "__main__":
         "training": {"per_device_batch_size":4,},
         "cache_dir": "~/workspace/unlearning_bias/.cache",
         "task": {"data_path": "data/stereoset.json"},
-        "data": {
-            "max_length": 512,
-            "num_workers": 4,
-        },
+        "data": {"num_workers": 4},
     }
     from omegaconf import OmegaConf
     cfg = OmegaConf.create(cfg)

@@ -1,5 +1,7 @@
 from pathlib import Path
 from torch.utils.data import DataLoader, ConcatDataset
+from torch.nn import ModuleList, ModuleDict
+from collections import defaultdict
 
 from metric_logging import MetricDataModule
 
@@ -13,7 +15,10 @@ class CombinedDataModule(MetricDataModule):
         self.cache_dir = cfg.cache_dir
         self.data_path = Path(__file__).parent.parent / cfg.task.data_path
         self.data_modules = data_modules
-        self.metrics = [dm.metrics for dm in self.data_modules]
+        # self.metrics = defaultdict(ModuleList)
+        # for dm in self.data_modules:
+        #     for key, metric in dm.metrics.items():
+        #         self.metrics[key].append(metric)
 
     def prepare_data(self) -> None:
         for dm in self.data_modules:

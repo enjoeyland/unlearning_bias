@@ -1,5 +1,17 @@
-name: original
-fit_target: null  # options: [forget, retain]
-run_name: BS${training.train_batch_size}_LR${training.learning_rate}_W${training.warmup_ratio}_S${training.seed}
-# do_train: false
-# do_test: true
+# @package _global_
+defaults:
+  - override /task: crows_pairs
+  - _self_
+
+method:
+  name: original
+  fit_target: null  # options: [forget, retain]
+  run_name: BS${training.train_batch_size}_LR${training.learning_rate}_S${training.seed}
+
+do_train: false
+do_test: true
+
+training:
+  world_size: 1
+  per_device_batch_size: 16
+  gradient_accumulation_steps: 1

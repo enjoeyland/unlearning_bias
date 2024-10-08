@@ -21,7 +21,7 @@ class CivilCommentsData:
 
 
 class CivilCommentsDataset(Dataset):
-    def __init__(self, data, tokenizer, split='train', max_length=512):
+    def __init__(self, data, tokenizer, split='train', max_length=256):
         self.data = data
         self.split = split
         self.tokenizer = tokenizer
@@ -57,7 +57,6 @@ class CivilCommentsDataModule(MetricDataModule):
         self.num_workers = cfg.data.num_workers
         self.cache_dir = cfg.cache_dir
         self.data_path = Path(__file__).parent.parent / cfg.task.data_path
-        self.max_length = cfg.data.max_length
 
     def prepare_data(self) -> None:
         if self.data_path.exists():
@@ -67,6 +66,7 @@ class CivilCommentsDataModule(MetricDataModule):
 
         dataset = load_dataset("google/civil_comments", cache_dir=self.cache_dir)
         
+        max_length = 0
         data = defaultdict(list)
         for item_data in dataset["train"]:
             item_entry = CivilCommentsData(
@@ -81,6 +81,8 @@ class CivilCommentsDataModule(MetricDataModule):
             )
             if item_entry.identity_attack > 0.5 or item_entry.sexual_explicit > 0.5:
                 data["social_bias"].append(asdict(item_entry))
+                max_length = max(max_length, len(item_entry.text.split()))
+        print(f"Max length: {max_length}")
 
         with open(self.data_path, "w") as f:
             json.dump(data, f, indent=2)
@@ -94,7 +96,7 @@ class CivilCommentsDataModule(MetricDataModule):
         
         self.datasets = {}
         if stage == "fit":
-            self.datasets["train"] = CivilCommentsDataset(data["social_bias"], self.tokenizer, split='train', max_length=self.max_length)
+            self.datasets["train"] = CivilCommentsDataset(data["social_bias"], self.tokenizer, split='train')
 
     def train_dataloader(self):
         return DataLoader(
@@ -106,13 +108,10 @@ class CivilCommentsDataModule(MetricDataModule):
 
 if __name__ == "__main__":
     cfg = {
-        "training": {"per_device_batch_size":4,},
+        "training": {"per_device_batch_size":4},
         "cache_dir": "~/workspace/unlearning_bias/.cache",
         "task": {"data_path": "data/civil_comments.json"},
-        "data": {
-            "max_length": 512,
-            "num_workers": 4,
-        },
+        "data": {"num_workers": 4},
     }
     from omegaconf import OmegaConf
     cfg = OmegaConf.create(cfg)

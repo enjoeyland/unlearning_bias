@@ -16,6 +16,10 @@ class Callbacks:
         else:
             self.every_n_epochs = 5 if cfg.task.name != "xnli" else 1
 
+        self.monitor = None
+        self.mode = "min"
+        self.filename = "best"
+
         if cfg.task.name == "flores":
             self.monitor = "val/forget_xma"
             self.mode = "min"
@@ -51,7 +55,7 @@ class Callbacks:
             self.monitor = None
             self.mode = "min"
             if cfg.method.fit_target == "forget":
-                self.filename = "fppl={train_ppl:.2f}"
+                self.filename = "fppl={train/ppl:.2f}"
         else:
             raise ValueError(f"Task {cfg.task.name} not supported.")        
 

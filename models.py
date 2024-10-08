@@ -22,7 +22,6 @@ class UnlearningBiasModel(LightningModule):
     def __init__(self, hparams):
         super().__init__()
         self.save_hyperparameters(hparams)
-        save_hparams_to_yaml(os.path.join(self.hparams.output_dir, "hparams.yaml"), self.hparams)
         
         self.tokenizer = AutoTokenizer.from_pretrained(self.hparams.model.hf, cache_dir=self.hparams.cache_dir, clean_up_tokenization_spaces=True)
 
@@ -121,22 +120,30 @@ class UnlearningBiasModel(LightningModule):
     def training_step(self, batch, batch_idx):
         outputs = self(**batch)
         loss = outputs.loss
-        self.metric_logger.on_training_step(self, outputs, batch, batch_idx)
+
+        metrics = {
+            "train/loss": loss,
+            "train/ppl": torch.exp(loss),
+        }
+        self.log_dict(metrics, on_step=True, prog_bar=True, logger=True, batch_size=batch["input_ids"].size(0))
         return loss
     
     def test_step(self, batch, batch_idx, dataloader_idx=0):
         outputs = self(**batch)
         loss = outputs.loss
-        if self.hparams.task.name == "crows_pairs":
+        if self.hparams.task.name in ["crows_pairs", "combined_cc_ss_cp"]:
             self.test_metrics[dataloader_idx]["sent_probs"].update(outputs, batch)
-            # self.log("sent_probs", self.metrics["sent_probs"], on_step=False, on_epoch=True,  logger=True, add_dataloader_idx=False, batch_size=batch["input_ids"].size(0))
-        # self.metric_logger.on_test_step(self, outputs, batch, batch_idx, dataloader_idx)
-        self.log_dict({"test/loss": loss}, on_epoch=True, prog_bar=True, logger=True, add_dataloader_idx=True, batch_size=batch["input_ids"].size(0))
+        
+        metrics = {
+            "test/loss": loss,
+            "test/ppl": torch.exp(loss),
+        }
+        self.log_dict(metrics, on_step=True, on_epoch=True, prog_bar=True, logger=True, add_dataloader_idx=True, batch_size=batch["input_ids"].size(0))
         return loss
 
     def on_test_epoch_end(self):
         metrics = {}
-        if self.hparams.task.name == "crows_pairs":
+        if self.hparams.task.name in ["crows_pairs", "combined_cc_ss_cp"]:
             self.test_metrics[2]["bias_score"].update("stereotype", self.test_metrics[0]["sent_probs"].compute())
             metrics["test/stereo_probs"] = self.test_metrics[0]["sent_probs"].compute().mean()
             self.test_metrics[2]["bias_score"].update("anti-stereotype", self.test_metrics[1]["sent_probs"].compute())
@@ -181,7 +188,9 @@ class UnlearningBiasModel(LightningModule):
         else:
             raise NotImplementedError(f"Optimizer {self.hparams.training.optimizer} not implemented.")
         
-        if self.hparams.training.lr_scheduler_type == "linear":
+        if self.hparams.training.lr_scheduler_type is None:
+            return optimizer
+        elif self.hparams.training.lr_scheduler_type == "linear":
             lr_scheduler = get_linear_schedule_with_warmup(
                 optimizer,
                 num_warmup_steps=int(
@@ -206,7 +215,7 @@ class UnlearningBiasModel(LightningModule):
                 "scheduler": lr_scheduler,
                 "interval": "step",
                 "frequency": 1,
-                # "monitor": "val_loss",
+                "monitor": "val_loss",
             },
         }
 

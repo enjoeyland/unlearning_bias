@@ -39,7 +39,6 @@ def main(cfg, model_path=None):
         logger = CSVLogger(
             save_dir=cfg.logging.log_dir,
             name=cfg.logging.name,
-            flush_logs_every_n_steps=10,
         )
 
     if model_path:

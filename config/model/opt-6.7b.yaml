@@ -1,0 +1,6 @@
+name: opt-6.7b
+hf: facebook/opt-6.7b
+type: decoder
+learning_rate: 2e-4
+
+#  python run.py method=original do_train=false do_test=true training.world_size=1 training.per_device_batch_size=1 training.gradient_accumulation_steps=16 task=crows_pairs model=opt-6.7b

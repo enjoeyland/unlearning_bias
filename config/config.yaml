@@ -1,18 +1,18 @@
 project_name: unlearning_bias
 
 defaults:
-  - model: opt-1.3b
+  - _self_
   - task: combined_cc_ss_cp
   - method: finetune  # options: [original, negtaskvector, finetune]
-  - _self_
+  - model: opt-1.3b
 
 cache_dir: .cache/
 
 data:
-  forget_ratio: 0.01
-  forget_num: 32
-  retain_multiplier: 1
-  max_length: 512
+  # forget_ratio: 0.01
+  # forget_num: 32
+  # retain_multiplier: 1
+  # max_length: 256
   num_workers: 4
 
 
@@ -20,20 +20,19 @@ training:
   seed: 42
   logger: csv  # options: [null, wandb, csv]
   
+  bf16: true
   use_lora: true
   use_qlora: false
   load_in_8bit: false
   load_in_4bit: false
-  dp_strategy: auto  # options: [auto, ddp, deepspeed, deepspeed_stage_1, deepspeed_stage_2, deepspeed_stage_2_offload, deepspeed_stage_3, deepspeed_stage_3_offload]
-  bf16: true
   
   optimizer: adamw  # options: [adam, adamw]
   learning_rate: ${model.learning_rate}
-  lr_scheduler_type: linear  # options: [linear, cosine]
-  # warmup_ratio: 0.1
-  warmup_ratio: 0
+  lr_scheduler_type: null  # options: [null, linear, cosine]
+  # warmup_ratio: 0
   epochs: 4
 
+  dp_strategy: auto  # options: [auto, ddp, deepspeed, deepspeed_stage_1, deepspeed_stage_2, deepspeed_stage_2_offload, deepspeed_stage_3, deepspeed_stage_3_offload]
   world_size: 2
   per_device_batch_size: 4
   gradient_accumulation_steps: 2
