@@ -1,12 +1,10 @@
 lightning_logs/
 wandb/
 results/
-.실행.sh
 .checkpoints/
-scripts/finding_hp.sh
-preprocess/*.jsonl
 outputs/
 .logs/
+sandbox/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
