@@ -3,7 +3,7 @@ from torch.utils.data import DataLoader, ConcatDataset
 from torch.nn import ModuleList, ModuleDict
 from collections import defaultdict
 
-from metric_logging import MetricDataModule
+from metrics.metric_base import MetricDataModule
 
 
 class CombinedDataModule(MetricDataModule):

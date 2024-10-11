@@ -6,7 +6,7 @@ from dataclasses import dataclass, asdict
 from torch.utils.data import Dataset, DataLoader
 from datasets import load_dataset
 
-from metric_logging import MetricDataModule
+from metrics.metric_base import MetricDataModule
 
 @dataclass
 class CivilCommentsData:

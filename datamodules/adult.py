@@ -7,7 +7,6 @@ from torch import tensor
 from torch.utils.data import Dataset, DataLoader
 from datasets import load_dataset
 
-from metric_logging import MetricDataModule
 
 @dataclass
 class AdultData:

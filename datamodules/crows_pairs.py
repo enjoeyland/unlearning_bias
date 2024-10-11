@@ -11,7 +11,7 @@ from torchmetrics import Metric
 from torchmetrics.utilities import dim_zero_cat
 from torch.nn import ModuleDict, ModuleList
 
-from metric_logging import MetricDataModule
+from metrics.metric_base import MetricDataModule
 
 _STEREOTYPE = "stereotype"
 _ANTI_STEREOTYPE = "anti-stereotype"

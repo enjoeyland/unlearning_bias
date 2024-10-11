@@ -7,7 +7,7 @@ from torch.utils.data import Dataset, DataLoader
 from datasets import load_dataset, concatenate_datasets
 from transformers import PreTrainedTokenizer
 
-from metric_logging import MetricDataModule
+from metrics.metric_base import MetricDataModule
 
 @dataclass
 class StereoSetData:
