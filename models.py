@@ -11,7 +11,7 @@ from pytorch_lightning.core.saving import save_hparams_to_yaml
 from torch.nn import ModuleDict, ModuleList 
 
 
-from datamodules import XNLIDataModule, FLORESDataModule, BMLAMADataModule, StereoSetDataModule, CivilCommentsDataModule, CrowsPairsDataModule, CombinedDataModule
+from datamodules import XNLIDataModule, FLORESDataModule, BMLAMADataModule, StereoSetDataModule, CivilCommentsDataModule, CrowsPairsDataModule, CombinedDataModule, AdultDataModule
 from utils import installed_cuda_version
 from datamodules.crows_pairs import SentProbMetric, BiasScoreMetric
 
@@ -28,6 +28,7 @@ class UnlearningBiasModel(LightningModule):
         self.datamodule = self._get_datamodule(self.hparams.task.name)
         self.test_metrics = ModuleList([ModuleDict({"sent_probs": SentProbMetric()}), ModuleDict({"sent_probs": SentProbMetric()}), ModuleDict({"bias_score": BiasScoreMetric()})])
         self.model = None
+        self.metrics = self.datamodule.metrics
 
     def _get_datamodule(self, task):
         if "combined" in task:
@@ -43,6 +44,8 @@ class UnlearningBiasModel(LightningModule):
             return CivilCommentsDataModule(self.hparams, self.tokenizer)
         elif task == "crows_pairs":
             return CrowsPairsDataModule(self.hparams, self.tokenizer)
+        elif task == "adult":
+            return AdultDataModule(self.hparams, self.tokenizer)
         else:
             raise NotImplementedError(f"Task {task} not implemented.")
 
@@ -50,18 +53,13 @@ class UnlearningBiasModel(LightningModule):
         if self.model is not None:
             return
 
-        if "mt5" in self.hparams.model.name:
-            target_modules = ["k_proj", "q_proj", "v_proj", "o_proj"]
-        elif "opt" in self.hparams.model.name:
+        if "opt" in self.hparams.model.name:
             target_modules = ["k_proj", "q_proj", "v_proj", "out_proj"]
         else:
             model = AutoModelForCausalLM.from_pretrained(self.hparams.model.hf, cache_dir=self.hparams.cache_dir)
             print(model)
             raise ValueError(f"Model {self.hparams.model.name} not supported.")
         
-        self.model = self._load_model(target_modules)
-
-    def _load_model(self, target_modules=None):
         model_kwargs = {}
 
         if "deepspeed" in self.hparams.training.dp_strategy:
@@ -112,7 +110,7 @@ class UnlearningBiasModel(LightningModule):
         if self.hparams.do_train:
             model.train()
 
-        return model
+        self.model = model
 
     def forward(self, input_ids, attention_mask=None, labels=None, **inputs):
         return self.model(input_ids, attention_mask=attention_mask, labels=labels)
@@ -121,13 +119,29 @@ class UnlearningBiasModel(LightningModule):
         outputs = self(**batch)
         loss = outputs.loss
 
-        metrics = {
-            "train/loss": loss,
-            "train/ppl": torch.exp(loss),
-        }
+
+        metrics = {"train/loss": loss}
+        metrics.update(self.datamodule.on_step("train", outputs, batch, batch_idx))
+        
+        # if self.hparams.task.task_type == "SEQ_CLS":
+        #     preds = outputs.logits.argmax(dim=-1)
+        #     accuracy = (preds == batch["labels"]).float().mean()
+        #     metrics[f"train/accuracy"] = accuracy
+        # elif self.hparams.task.task_type == "CAUSAL_LM":
+        #     ppl = torch.exp(loss)
+        #     metrics[f"train/ppl"] = ppl
         self.log_dict(metrics, on_step=True, prog_bar=True, logger=True, batch_size=batch["input_ids"].size(0))
         return loss
     
+    def validation_step(self, batch, batch_idx, dataloader_idx=0):
+        outputs = self(**batch)
+        loss = outputs.loss
+
+        metrics = {"valid/loss": loss}
+        metrics.update(self.datamodule.on_step("valid", outputs, batch, batch_idx))
+        self.log_dict(metrics, on_step=True, on_epoch=True, prog_bar=True, logger=True, add_dataloader_idx=True, batch_size=batch["input_ids"].size(0))
+        return loss
+
     def test_step(self, batch, batch_idx, dataloader_idx=0):
         outputs = self(**batch)
         loss = outputs.loss
@@ -155,20 +169,6 @@ class UnlearningBiasModel(LightningModule):
             self.test_metrics[0]["sent_probs"].reset()
             self.test_metrics[0]["sent_probs"].reset()
             self.test_metrics[2]["bias_score"].reset()
-
-
-    def _log_metrics(self, split, batch, outputs, dataset_name):
-        loss = outputs.loss
-        metrics = { f"{dataset_name}_loss": loss }
-        if self.hparams.task.task_type == "SEQ_CLS":
-            preds = outputs.logits.argmax(dim=-1)
-            accuracy = (preds == batch["labels"]).float().mean()
-            metrics[f"{dataset_name}_accuracy"] = accuracy
-        elif self.hparams.task.task_type == "CAUSAL_LM":
-            ppl = torch.exp(loss)
-            metrics[f"{dataset_name}_ppl"] = ppl
-
-        self.log_dict(metrics, on_epoch=True, prog_bar=True, logger=True, add_dataloader_idx=False, batch_size=self.hparams.training.per_device_batch_size)
 
     def configure_optimizers(self):
         cuda_major, cuda_minor = installed_cuda_version()

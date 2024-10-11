@@ -1,8 +1,4 @@
 # @package _global_
-defaults:
-  - override /task: crows_pairs
-  - _self_
-
 method:
   name: original
   fit_target: null  # options: [forget, retain]

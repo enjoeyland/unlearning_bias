@@ -57,7 +57,7 @@ class Callbacks:
             if cfg.method.fit_target == "forget":
                 self.filename = "fppl={train/ppl:.2f}"
         else:
-            raise ValueError(f"Task {cfg.task.name} not supported.")        
+            print(f"Task {cfg.task.name} is not setup for callbacks.")  
 
 
         if cfg.method.name == "finetune":
