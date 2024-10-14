@@ -56,6 +56,11 @@ class Callbacks:
             self.mode = "min"
             if cfg.method.fit_target == "forget":
                 self.filename = "fppl={train/ppl:.2f}"
+        elif cfg.task.name == "adult":
+            self.monitor = "valid/equal_opportunity"
+            self.mode = "min"
+            self.filename = "acc={valid/accuracy:.3f}-eo={valid/equal_opportunity:.4f}"
+
         else:
             print(f"Task {cfg.task.name} is not setup for callbacks.")  
 
@@ -93,6 +98,9 @@ class Callbacks:
         )
 
     def get_early_stop_step(self):
+        if self.stop_step == 0 or self.stop_step is None:
+            return Callback()
+        
         return EarlyStopStepCallback(
             stop_step=self.stop_step
         )

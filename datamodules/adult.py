@@ -1,13 +1,13 @@
 import json
+import torch
 
 from pathlib import Path
 from dataclasses import dataclass, asdict
-from torch import tensor
 from torch.utils.data import Dataset, DataLoader
 from datasets import load_dataset
 
 from datamodules import BaseDataModule
-from metrics.classification_metrics import BinaryAccuracy
+from metrics.classification_metrics import BinaryAccuracy, EqulityOfOpportunity
 
 @dataclass
 class AdultData:
@@ -53,7 +53,8 @@ class AdultDataset(Dataset):
         return {
             'input_ids': inputs['input_ids'].squeeze(),
             'attention_mask': inputs['attention_mask'].squeeze(),
-            'labels': tensor(item['over_threshold']),
+            'labels': torch.tensor(item['over_threshold']),
+            'is_male': torch.tensor(item['is_male'], dtype=torch.bool),
         }
 
 class AdultDataModule(BaseDataModule):
@@ -68,9 +69,13 @@ class AdultDataModule(BaseDataModule):
             self.data_path[split] = Path(__file__).parent.parent / cfg.task.data_path[split]
         
         self.num_classes = 2 # income >= 50k$ or not
-        
-        self.metrics.update({
+        self.metrics["_train"].update({
             "accuracy": BinaryAccuracy(),
+            "equal_opportunity": EqulityOfOpportunity("is_male"),
+        })
+        self.metrics["_valid"].update({
+            "accuracy": BinaryAccuracy(),
+            "equal_opportunity": EqulityOfOpportunity("is_male"),
         })
 
     def prepare_data(self) -> None:

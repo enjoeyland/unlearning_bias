@@ -2,26 +2,19 @@ project_name: unlearning_bias
 
 defaults:
   - _self_
-  - task: combined_cc_ss_cp
-  - method: finetune  # options: [original, negtaskvector, finetune]
-  - model: opt-1.3b
+  - experiment: adult
 
 cache_dir: .cache/
 
 data:
-  # forget_ratio: 0.01
-  # forget_num: 32
-  # retain_multiplier: 1
-  # max_length: 256
   num_workers: 4
-
 
 training:
   seed: 42
   logger: csv  # options: [null, wandb, csv]
   
   bf16: true
-  use_lora: true
+  use_lora: false
   use_qlora: false
   load_in_8bit: false
   load_in_4bit: false
@@ -48,10 +41,10 @@ logging:
 callbacks:
   eval_steps: 1.0
   max_tolerance: null
-  early_stop_step: 3000 # depend on model
+  early_stop_step: null
 
 output_dir: .checkpoints/${model.name}/${task.name}/${method.name}/${method.run_name}
 
-do_train: true
+do_train: false
 do_eval: false
 do_test: false

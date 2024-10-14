@@ -1,9 +1,10 @@
 from collections import defaultdict
+from lightning import LightningDataModule
 from torch.utils.data import  DataLoader, ConcatDataset
 
 from metrics.metric_base import MetricDataModule
 
-class BaseDataModule(MetricDataModule):
+class DatasetLoaderModule(LightningDataModule):
     def __init__(self):
         super().__init__()
         self.datasets = defaultdict(list)
@@ -51,3 +52,6 @@ class BaseDataModule(MetricDataModule):
             )
             dataloaders.append(dataloader)
         return dataloaders
+
+class BaseDataModule(DatasetLoaderModule, MetricDataModule):
+    ...

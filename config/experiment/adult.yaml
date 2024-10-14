@@ -1,0 +1,19 @@
+# @package _global_
+defaults:
+  - _self_
+  - /task: adult
+  - /method: finetune  # options: [original, negtaskvector, finetune]
+  - /model: opt-1.3b
+
+training:  
+  use_lora: true
+  epochs: 10
+
+callbacks:
+  eval_steps: 0.5
+  max_tolerance: 5
+  early_stop_step: null
+
+do_train: true
+do_eval: false
+do_test: false
