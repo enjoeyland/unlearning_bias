@@ -45,7 +45,12 @@ class AdultDataset(Dataset):
         for k,v in item.items():
             if k in self.remove_features+["over_threshold"]:
                 continue
-            feature_text.append(f"{' '.join(k.split('_'))} is {v}")
+            elif k == "is_male":
+                feature_text.append(f"gender is {"male" if v else "female"}")
+            else:
+                feature_text.append(f"{' '.join(k.split('_'))} is {v}")
+        else:
+            feature_text.append("is income over 50k$?")
         text = ", ".join(feature_text)
         
 

@@ -24,7 +24,7 @@ class EqulityOfOpportunity(Metric, MetricHandler):
             self.unprivileged_recall.update(preds[~feature], target[~feature]) # <-- seed42 batch16으로 할때 ~feature가 없으면 멈춰버림 아직 원인 모름..
     
     def compute(self):
-        result = self.privileged_recall.compute() - self.unprivileged_recall.compute()
+        result = abs(self.privileged_recall.compute() - self.unprivileged_recall.compute())
         return result
 
     def on_step(self, split, outputs, batch, batch_idx, dataloader_idx=0, *args, **kwargs):
@@ -32,6 +32,3 @@ class EqulityOfOpportunity(Metric, MetricHandler):
         target = batch["labels"]
         feature = batch[self.feature_name]
         return self(preds, target, feature)
-
-    def on_epoch_end(self):
-        return self.compute()

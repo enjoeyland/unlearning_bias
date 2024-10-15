@@ -8,12 +8,9 @@ from transformers import AutoTokenizer, AutoModelForSequenceClassification, Auto
 from transformers.utils import logging
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 from pytorch_lightning.core.saving import save_hparams_to_yaml
-from torch.nn import ModuleDict, ModuleList 
-
 
 from datamodules import XNLIDataModule, FLORESDataModule, BMLAMADataModule, StereoSetDataModule, CivilCommentsDataModule, CrowsPairsDataModule, CombinedDataModule, AdultDataModule
 from utils import installed_cuda_version
-from datamodules.crows_pairs import SentProbMetric, BiasScoreMetric
 
 logging.get_logger("transformers").setLevel(logging.ERROR)
 
@@ -26,7 +23,6 @@ class UnlearningBiasModel(LightningModule):
         self.tokenizer = AutoTokenizer.from_pretrained(self.hparams.model.hf, cache_dir=self.hparams.cache_dir, clean_up_tokenization_spaces=True)
 
         self.datamodule = self._get_datamodule(self.hparams.task.name)
-        # self.test_metrics = ModuleList([ModuleDict({"sent_probs": SentProbMetric()}), ModuleDict({"sent_probs": SentProbMetric()}), ModuleDict({"bias_score": BiasScoreMetric()})])
         self.model = None
         self.metrics = self.datamodule.metrics
 
@@ -122,14 +118,6 @@ class UnlearningBiasModel(LightningModule):
 
         metrics = {"train/loss": loss}
         metrics.update(self.datamodule.on_step("train", outputs, batch, batch_idx))
-        
-        # if self.hparams.task.task_type == "SEQ_CLS":
-        #     preds = outputs.logits.argmax(dim=-1)
-        #     accuracy = (preds == batch["labels"]).float().mean()
-        #     metrics[f"train/accuracy"] = accuracy
-        # elif self.hparams.task.task_type == "CAUSAL_LM":
-        #     ppl = torch.exp(loss)
-        #     metrics[f"train/ppl"] = ppl
         self.log_dict(metrics, on_step=True, prog_bar=True, logger=True, batch_size=batch["input_ids"].size(0))
         return loss
     
@@ -138,37 +126,43 @@ class UnlearningBiasModel(LightningModule):
         loss = outputs.loss
 
         metrics = {"valid/loss": loss}
-        metrics.update(self.datamodule.on_step("valid", outputs, batch, batch_idx))
+        metrics.update(self.datamodule.on_step("valid", outputs, batch, batch_idx, dataloader_idx))
         self.log_dict(metrics, on_epoch=True, prog_bar=True, logger=True, add_dataloader_idx=False, batch_size=batch["input_ids"].size(0))
         return loss
 
     def test_step(self, batch, batch_idx, dataloader_idx=0):
         outputs = self(**batch)
         loss = outputs.loss
-        if self.hparams.task.name in ["crows_pairs", "combined_cc_ss_cp"]:
-            self.test_metrics[dataloader_idx]["sent_probs"].update(outputs, batch)
         
-        metrics = {
-            "test/loss": loss,
-            "test/ppl": torch.exp(loss),
-        }
-        self.log_dict(metrics, on_step=True, on_epoch=True, prog_bar=True, logger=True, add_dataloader_idx=True, batch_size=batch["input_ids"].size(0))
+        metrics = {"test/loss": loss}
+        metrics.update(self.datamodule.on_step("test", outputs, batch, batch_idx, dataloader_idx))
+        self.log_dict(metrics, on_epoch=True, prog_bar=True, logger=True, add_dataloader_idx=True, batch_size=batch["input_ids"].size(0))
         return loss
 
+    def on_train_epoch_end(self) -> None:
+        metrics = self.datamodule.on_epoch_end("train")
+        self.log_dict(metrics, logger=True)
+
+    def on_validation_epoch_end(self):
+        metrics = self.datamodule.on_epoch_end("valid")
+        self.log_dict(metrics, logger=True, add_dataloader_idx=False)
+
     def on_test_epoch_end(self):
-        metrics = {}
-        if self.hparams.task.name in ["crows_pairs", "combined_cc_ss_cp"]:
-            self.test_metrics[2]["bias_score"].update("stereotype", self.test_metrics[0]["sent_probs"].compute())
-            metrics["test/stereo_probs"] = self.test_metrics[0]["sent_probs"].compute().mean()
-            self.test_metrics[2]["bias_score"].update("anti-stereotype", self.test_metrics[1]["sent_probs"].compute())
-            metrics["test/antistereo_probs"] = self.test_metrics[1]["sent_probs"].compute().mean()
-            metrics["test/bias_score"] = self.test_metrics[2]["bias_score"].compute()
+        metrics = self.datamodule.on_epoch_end("test")
+        self.log_dict(metrics, logger=True, add_dataloader_idx=False)
+    #     metrics = {}
+    #     if self.hparams.task.name in ["crows_pairs", "combined_cc_ss_cp"]:
+    #         self.test_metrics[2]["bias_score"].update("stereotype", self.test_metrics[0]["sent_probs"].compute())
+    #         metrics["test/stereo_probs"] = self.test_metrics[0]["sent_probs"].compute().mean()
+    #         self.test_metrics[2]["bias_score"].update("anti-stereotype", self.test_metrics[1]["sent_probs"].compute())
+    #         metrics["test/antistereo_probs"] = self.test_metrics[1]["sent_probs"].compute().mean()
+    #         metrics["test/bias_score"] = self.test_metrics[2]["bias_score"].compute()
 
-            self.log_dict(metrics, logger=True, add_dataloader_idx=False)
+    #         self.log_dict(metrics, logger=True, add_dataloader_idx=False)
 
-            self.test_metrics[0]["sent_probs"].reset()
-            self.test_metrics[0]["sent_probs"].reset()
-            self.test_metrics[2]["bias_score"].reset()
+    #         self.test_metrics[0]["sent_probs"].reset()
+    #         self.test_metrics[0]["sent_probs"].reset()
+    #         self.test_metrics[2]["bias_score"].reset()
 
     def configure_optimizers(self):
         cuda_major, cuda_minor = installed_cuda_version()

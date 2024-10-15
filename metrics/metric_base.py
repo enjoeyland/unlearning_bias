@@ -4,14 +4,14 @@ from typing import Literal
 
 class MetricHandler:
     def on_step(self, split: Literal["train", "valid", "test"], outputs, batch, batch_idx, dataloader_idx=0, *args, **kwargs):
-        pass
+        ...
     def on_epoch_end(self, split, *args, **kwargs):
         ...
 
 class MetricDataModule(LightningDataModule, MetricHandler):
     def __init__(self):
         super().__init__()
-        self.metrics = ModuleDict({
+        self.metrics: Module = ModuleDict({
             "_train": ModuleDict(),
             "_valid": ModuleDict(),
             "_test": ModuleDict(),
