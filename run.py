@@ -100,13 +100,13 @@ def create_negtaskvector_model(cfg):
     saved_forget_ckpt = glob(f"{cfg.method.load_from.forget}/*.ckpt")
     forget_ckpt = [item for item in saved_forget_ckpt if "forget" in item.split("/")[-1]]
     try:
-        forget_ckpt = sorted(forget_ckpt, key=lambda x: float(x.split("/")[-1].split(".ckpt")[0].split("fppl=")[-1]))[0]
+        forget_ckpt = sorted(forget_ckpt, key=lambda x: float(x.split("/")[-1].split(".ckpt")[0].split("=")[-1]))[0]
     except IndexError:
         print(forget_ckpt)
         raise FileNotFoundError(f"Forget ckpt not found in {cfg.method.load_from.forget}")
     except ValueError as e:
         print(forget_ckpt)
-        print(e)
+        raise e
     forget_ckpt_metrics = forget_ckpt.split("/")[-1].split(".ckpt")[0].split("_")[-1]
     print("Start creating forget task vector model")
     forget_tv = TaskVector(pretraind_model, forget_ckpt)
@@ -119,10 +119,10 @@ def create_negtaskvector_model(cfg):
 
     if cfg.method.retain_scaling_coef != 0:
         saved_retain_ckpt = glob(f"{cfg.method.load_from.retain}/*.ckpt")
-        retain_ckpt = [item for item in saved_retain_ckpt if f"retain{cfg.data.retain_multiplier}" in item.split("/")[-1]]
+        retain_ckpt = [item for item in saved_retain_ckpt if f"retain" in item.split("/")[-1]]
         assert retain_ckpt, f"Retain ckpt not found in {cfg.method.load_from.retain}"
         try:
-            retain_ckpt = sorted(retain_ckpt, key=lambda x: float(x.split("/")[-1].split(".ckpt")[0].split("rppl=")[-1]))[0]
+            retain_ckpt = sorted(retain_ckpt, key=lambda x: float(x.split("/")[-1].split(".ckpt")[0].split("=")[-1]))[0]
         except IndexError:
             print(retain_ckpt)
             raise FileNotFoundError(f"Retain ckpt not found in {cfg.method.load_from.retain}")
@@ -132,7 +132,7 @@ def create_negtaskvector_model(cfg):
         retain_ckpt_metrics = retain_ckpt.split("/")[-1].split(".ckpt")[0].split("_")[-1]
         retain_tv = TaskVector(pretraind_model, retain_ckpt)
 
-        model = retain_tv.apply_to(model, scaling_coef=cfg.retain_scaling_coef)
+        model = retain_tv.apply_to(model, scaling_coef=cfg.method.retain_scaling_coef)
         model_name += f"-rs{cfg.method.retain_scaling_coef}_{retain_ckpt_metrics}"
     
     if cfg.method.save_model:

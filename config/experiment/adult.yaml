@@ -10,10 +10,15 @@ training:
   epochs: 10
 
 callbacks:
-  eval_steps: 0.5
-  max_tolerance: 5
+  eval_steps: 1.0
+  max_tolerance: 3
   early_stop_step: null
+
+# method:
+#   fit_target: forget  # options: [forget, retain]
 
 do_train: true
 do_eval: false
 do_test: false
+
+# python run.py -m method.fit_target=retain,forget

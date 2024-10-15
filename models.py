@@ -26,7 +26,7 @@ class UnlearningBiasModel(LightningModule):
         self.tokenizer = AutoTokenizer.from_pretrained(self.hparams.model.hf, cache_dir=self.hparams.cache_dir, clean_up_tokenization_spaces=True)
 
         self.datamodule = self._get_datamodule(self.hparams.task.name)
-        self.test_metrics = ModuleList([ModuleDict({"sent_probs": SentProbMetric()}), ModuleDict({"sent_probs": SentProbMetric()}), ModuleDict({"bias_score": BiasScoreMetric()})])
+        # self.test_metrics = ModuleList([ModuleDict({"sent_probs": SentProbMetric()}), ModuleDict({"sent_probs": SentProbMetric()}), ModuleDict({"bias_score": BiasScoreMetric()})])
         self.model = None
         self.metrics = self.datamodule.metrics
 

@@ -3,8 +3,8 @@ task:
   name: adult
   task_type: SEQ_CLS # options: [CAUSAL_LM, SEQ_CLS]
   data_path: 
-    train: data/adult_${method.fit_target}_train.json
-    valid: data/adult_${method.fit_target}_valid.json
+    train: data/adult_train.json
+    valid: data/adult_valid.json
 
 training:
   world_size: 2

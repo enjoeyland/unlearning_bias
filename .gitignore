@@ -1,10 +1,12 @@
 lightning_logs/
 wandb/
-results/
 .checkpoints/
-outputs/
 .logs/
 sandbox/
+
+#hydra
+outputs/
+multirun/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

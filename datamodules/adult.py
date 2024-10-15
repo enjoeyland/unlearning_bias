@@ -28,19 +28,26 @@ class AdultData:
 
 
 class AdultDataset(Dataset):
-    def __init__(self, data, tokenizer, split='train', max_length=128):
+    def __init__(self, data, tokenizer, split='train', max_length=128, remove_features=[]):
         self.data = data
         self.split = split
         self.tokenizer = tokenizer
         self.max_length = max_length
+        self.remove_features = remove_features
 
     def __len__(self):
         return len(self.data)
 
     def __getitem__(self, idx):
         item = self.data[idx]
+
+        feature_text = [] 
+        for k,v in item.items():
+            if k in self.remove_features+["over_threshold"]:
+                continue
+            feature_text.append(f"{' '.join(k.split('_'))} is {v}")
+        text = ", ".join(feature_text)
         
-        text = f"age is {item['age']}, capital gain is {item['capital_gain']}, capital loss is {item['capital_loss']}, education is {item['education']}, final weight is {item['final_weight']}, hours worked per week is {item['hours_worked_per_week']}, marital status is {item['marital_status']}, native country is {item['native_country']}, occupation is {item['occupation']}, race is {item['race']}, relationship is {item['relationship']}, gender is {'male' if item['is_male'] else 'female'}, workclass is {item['workclass']}"
 
         inputs = self.tokenizer(
             text, 
@@ -67,6 +74,7 @@ class AdultDataModule(BaseDataModule):
         self.data_path = {}
         for split in ["train", "valid"]:
             self.data_path[split] = Path(__file__).parent.parent / cfg.task.data_path[split]
+        self.fit_target = cfg.method.fit_target
         
         self.num_classes = 2 # income >= 50k$ or not
         self.metrics["_train"].update({
@@ -88,10 +96,11 @@ class AdultDataModule(BaseDataModule):
         dataset = load_dataset("mstz/adult", "income", cache_dir=self.cache_dir)
         
         education_dict = {item['encoded_value']: item['original_value'] for item in encode_dataset}
+   
         for split in dataset:
             data = []
             for item_data in dataset[split]:
-                item_entry = AdultData(
+                entry = AdultData(
                     age=item_data["age"],
                     capital_gain=item_data["capital_gain"],
                     capital_loss=item_data["capital_loss"],
@@ -107,8 +116,9 @@ class AdultDataModule(BaseDataModule):
                     workclass=item_data["workclass"],
                     over_threshold=item_data["over_threshold"],
                 )
-                split = "train" if split == "train" else "valid"
-                data.append(asdict(item_entry))
+                data.append(asdict(entry))
+            
+            split = "train" if split == "train" else "valid"        
             with open(self.data_path[split], "w") as f:
                 json.dump(data, f, indent=2)
 
@@ -122,12 +132,16 @@ class AdultDataModule(BaseDataModule):
             cache_dir=self.cache_dir,
         )
         
+        remove_features = []
+        if self.fit_target == "forget":
+            remove_features = ["is_male"]
+
         if stage == "fit":
-            self.datasets["train"].append(AdultDataset(data["train"], self.tokenizer, split='train'))
-            self.datasets["valid"].append(AdultDataset(data["valid"], self.tokenizer, split='valid'))
+            self.datasets["train"].append(AdultDataset(data["train"], self.tokenizer, split='train', remove_features=remove_features))
+            self.datasets["valid"].append(AdultDataset(data["valid"], self.tokenizer, split='valid', remove_features=remove_features))
         
         elif stage == "validate":
-            self.datasets["valid"].append(AdultDataset(data["valid"], self.tokenizer, split='valid'))
+            self.datasets["valid"].append(AdultDataset(data["valid"], self.tokenizer, split='valid', remove_features=remove_features))
 
 
 if __name__ == "__main__":

@@ -11,10 +11,10 @@ class Callbacks:
         self.max_tolerance = cfg.callbacks.max_tolerance
         self.stop_step = cfg.callbacks.early_stop_step
 
-        if cfg.method.name in ["negtaskvector", "finetune"]:
-            self.every_n_epochs = cfg.training.epochs
+        if cfg.method.name in ["negtaskvector"]:
+            self.every_n_epochs = cfg.training.epochs    
         else:
-            self.every_n_epochs = 5 if cfg.task.name != "xnli" else 1
+            self.every_n_epochs = 1
 
         self.monitor = None
         self.mode = "min"
@@ -56,6 +56,7 @@ class Callbacks:
             self.mode = "min"
             if cfg.method.fit_target == "forget":
                 self.filename = "fppl={train/ppl:.2f}"
+        
         elif cfg.task.name == "adult":
             self.monitor = "valid/equal_opportunity"
             self.mode = "min"
@@ -69,8 +70,10 @@ class Callbacks:
             if cfg.method.fit_target == "forget":
                 self.filename = f"forget_{self.filename}"
             elif cfg.method.fit_target == "retain":
-                self.filename = f"retain{cfg.data.retain_multiplier}_{self.filename}"
-        
+                if hasattr(cfg.data, "retain_multiplier") and not cfg.data.retain_multiplier:
+                    self.filename = f"retain{cfg.data.retain_multiplier}_{self.filename}"
+                else:
+                    self.filename = f"retain_{self.filename}"    
 
     def get_checkpoint_callback(self):
         return ModelCheckpoint(
