@@ -16,3 +16,6 @@ callbacks:
 do_train: true
 do_eval: false
 do_test: false
+
+# python run.py experiment=dige task=crows_pairs method=original
+# python run.py experiment=dige task=crows_pairs method=finetune
