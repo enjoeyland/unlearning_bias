@@ -7,7 +7,8 @@ from torch.utils.data import Dataset, DataLoader
 from datasets import load_dataset, concatenate_datasets
 from transformers import PreTrainedTokenizer
 
-from metrics.metric_base import MetricDataModule
+from datamodules import BaseDataModule
+from metrics.text import Perplexity
 
 @dataclass
 class StereoSetData:
@@ -53,10 +54,11 @@ class StereoSetDataset(Dataset):
             'labels': labels.squeeze()
         }
 
-class StereoSetDataModule(MetricDataModule):
+class StereoSetDataModule(BaseDataModule): # <-- 여기서부터 수정
     ANTI_STEREOTYPE = "anti-stereotype"
     STEREOTYPE = "stereotype"
     UNRELATED = "unrelated"
+    label_name = ["anti-stereotype", "stereotype", "unrelated"]
     
     def __init__(self, cfg, tokenizer):
         super().__init__()
@@ -65,13 +67,15 @@ class StereoSetDataModule(MetricDataModule):
         self.num_workers = cfg.data.num_workers
         self.cache_dir = cfg.cache_dir
         self.data_path = Path(__file__).parent.parent / cfg.task.data_path
+        self.metrics["_train"].update({
+            "ppl": Perplexity(ignore_index=-100),
+        })
 
     def prepare_data(self) -> None:
         if self.data_path.exists():
             return
 
         print("Preparing Stereoset dataset...")
-        label_name = ["anti-stereotype", "stereotype", "unrelated"]
 
         dataset_inter = load_dataset("McGill-NLP/stereoset", "intersentence", cache_dir=self.cache_dir)
         dataset_intra = load_dataset("McGill-NLP/stereoset", "intrasentence", cache_dir=self.cache_dir)
@@ -88,7 +92,7 @@ class StereoSetDataModule(MetricDataModule):
                     id=item_data["id"],
                     target=item_data["target"],
                 )
-                data[label_name[item_entry.label]].append(asdict(item_entry))
+                data[self.label_name[item_entry.label]].append(asdict(item_entry))
                 max_length = max(max_length, len(item_entry.context.split()) + len(item_entry.sentence.split()))
         print(f"Max length: {max_length}")
 
@@ -102,32 +106,49 @@ class StereoSetDataModule(MetricDataModule):
             cache_dir=self.cache_dir,
         )["train"]
 
-        self.datasets = {}
         if stage == "fit":
-            self.datasets["train"] = StereoSetDataset(data[self.STEREOTYPE], self.tokenizer, split='train', max_length=256)
-
-
-    def train_dataloader(self):
-        return DataLoader(
-            self.datasets["train"],
-            batch_size=self.batch_size,
-            num_workers=self.num_workers,
-            pin_memory=True,
-            shuffle=True
-        )
+            self.datasets["train"].append(StereoSetDataset(data[self.STEREOTYPE], self.tokenizer, split='train', max_length=256))
 
 if __name__ == "__main__":
-    cfg = {
-        "training": {"per_device_batch_size":4,},
-        "cache_dir": "~/workspace/unlearning_bias/.cache",
-        "task": {"data_path": "data/stereoset.json"},
-        "data": {"num_workers": 4},
-    }
+    # PYTHONPATH=$(pwd) python datamodules/stereoset.py
+    import unittest
     from omegaconf import OmegaConf
-    cfg = OmegaConf.create(cfg)
 
-    dm = StereoSetDataModule(cfg, tokenizer=None)
-    dm.prepare_data()
-    dm.setup('fit')
-    dl = dm.train_dataloader()
- 
+    class TestStereoSetDataModule(unittest.TestCase):
+        """StereoSetDataModule에 대한 유닛 테스트"""
+
+        def setUp(self):
+            """테스트 전에 호출되어 테스트 환경을 설정"""
+            self.cfg = {
+                "training": {"per_device_batch_size": 4},
+                "cache_dir": Path(__file__).parent.parent / ".cache",
+                "task": {"data_path": "data/stereoset.json"},
+                "data": {"num_workers": 4},
+            }
+            self.cfg = OmegaConf.create(self.cfg)
+            self.dm = StereoSetDataModule(self.cfg, tokenizer=None)
+
+        def test_prepare_data(self):
+            """prepare_data 메서드가 올바르게 실행되는지 테스트"""
+            try:
+                self.dm.prepare_data()
+            except Exception as e:
+                self.fail(f"prepare_data 실행 중 오류 발생: {e}")
+
+        def test_setup(self):
+            """setup 메서드가 올바르게 실행되는지 테스트"""
+            try:
+                self.dm.setup('fit')
+            except Exception as e:
+                self.fail(f"setup 실행 중 오류 발생: {e}")
+
+        def test_train_dataloader(self):
+            """train_dataloader 메서드가 올바르게 실행되는지 테스트"""
+            self.dm.setup('fit')
+            try:
+                dl = self.dm.train_dataloader()
+                self.assertIsInstance(dl, DataLoader, "train_dataloader가 DataLoader 객체를 반환해야 함")
+            except Exception as e:
+                self.fail(f"train_dataloader 실행 중 오류 발생: {e}")
+    
+    unittest.main()

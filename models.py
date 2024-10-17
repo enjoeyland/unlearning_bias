@@ -118,7 +118,7 @@ class UnlearningBiasModel(LightningModule):
 
         metrics = {"train/loss": loss}
         metrics.update(self.datamodule.on_step("train", outputs, batch, batch_idx))
-        self.log_dict(metrics, on_step=True, prog_bar=True, logger=True, batch_size=batch["input_ids"].size(0))
+        self.log_dict(metrics, on_step=True, prog_bar=True, logger=True, batch_size=batch["input_ids"].size(0), sync_dist=True)
         return loss
     
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
@@ -127,7 +127,7 @@ class UnlearningBiasModel(LightningModule):
 
         metrics = {"valid/loss": loss}
         metrics.update(self.datamodule.on_step("valid", outputs, batch, batch_idx, dataloader_idx))
-        self.log_dict(metrics, on_epoch=True, prog_bar=True, logger=True, add_dataloader_idx=False, batch_size=batch["input_ids"].size(0))
+        self.log_dict(metrics, on_epoch=True, prog_bar=True, logger=True, add_dataloader_idx=True, batch_size=batch["input_ids"].size(0), sync_dist=True)
         return loss
 
     def test_step(self, batch, batch_idx, dataloader_idx=0):
@@ -136,7 +136,7 @@ class UnlearningBiasModel(LightningModule):
         
         metrics = {"test/loss": loss}
         metrics.update(self.datamodule.on_step("test", outputs, batch, batch_idx, dataloader_idx))
-        self.log_dict(metrics, on_epoch=True, prog_bar=True, logger=True, add_dataloader_idx=True, batch_size=batch["input_ids"].size(0))
+        self.log_dict(metrics, on_epoch=True, prog_bar=True, logger=True, add_dataloader_idx=True, batch_size=batch["input_ids"].size(0), sync_dist=True)
         return loss
 
     def on_train_epoch_end(self) -> None:

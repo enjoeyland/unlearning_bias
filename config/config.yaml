@@ -37,6 +37,7 @@ logging:
   name: ${method.run_name}
   log_dir: .logs/${model.name}/${task.name}/${method.name}
   logging_steps: 500
+  progress_bar_refresh_rate: 1
 
 callbacks:
   eval_steps: 1.0

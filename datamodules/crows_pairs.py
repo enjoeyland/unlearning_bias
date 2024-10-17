@@ -10,8 +10,9 @@ from datasets import load_dataset
 from torchmetrics import Metric
 from torchmetrics.utilities import dim_zero_cat
 
-from metrics.metric_base import MetricDataModule, MetricHandler
-from metrics.text_metrics import Perplexity
+from datamodules import BaseDataModule
+from metrics.metric_base import MetricHandler
+from metrics.text import Perplexity
 
 _STEREOTYPE = "stereotype"
 _ANTI_STEREOTYPE = "anti-stereotype"
@@ -114,7 +115,7 @@ class CrowsPairsDataset(Dataset):
             'bias_type': item['bias_type'],
         }
 
-class CrowsPairsDataModule(MetricDataModule):
+class CrowsPairsDataModule(BaseDataModule):
     def __init__(self, cfg, tokenizer):
         super().__init__()
         self.tokenizer = tokenizer
@@ -123,12 +124,18 @@ class CrowsPairsDataModule(MetricDataModule):
         self.cache_dir = cfg.cache_dir
         self.data_path = Path(__file__).parent.parent / cfg.task.data_path
         
+        self.metrics["_valid"].update({
+            "ppl": Perplexity(ignore_index=-100),
+            "stereo_probs": (sp := SentProbMetric(dataloader_idx=0)),
+            "antistereo_probs": (ap := SentProbMetric(dataloader_idx=1)),
+            "bias_score": BiasScoreMetric(sp, ap),
+        })
 
         self.metrics["_test"].update({
             "ppl": Perplexity(ignore_index=-100),
-            "stereo_probs": (test_sp := SentProbMetric(dataloader_idx=0)),
-            "antistereo_probs": (test_ap := SentProbMetric(dataloader_idx=1)),
-            "bias_score": BiasScoreMetric(test_sp, test_ap),
+            "stereo_probs": (sp := SentProbMetric(dataloader_idx=0)),
+            "antistereo_probs": (ap := SentProbMetric(dataloader_idx=1)),
+            "bias_score": BiasScoreMetric(sp, ap),
         })
         
     def prepare_data(self) -> None:
@@ -165,41 +172,59 @@ class CrowsPairsDataModule(MetricDataModule):
 
     def setup(self, stage: str):
         data = load_dataset(
-            "json", 
+            "json",
             data_files=str(self.data_path.resolve()),
             cache_dir=self.cache_dir,
         )["train"]
 
-        self.datasets = defaultdict(list)
-        if stage == "test":
+        self.datatsets = defaultdict(list)
+        if stage == "fit" or stage == "validate":
+            self.datasets["valid"].append(CrowsPairsDataset(data[_STEREOTYPE], self.tokenizer, split='valid', sent_type=_STEREOTYPE))
+            self.datasets["valid"].append(CrowsPairsDataset(data[_ANTI_STEREOTYPE], self.tokenizer, split='valid', sent_type=_ANTI_STEREOTYPE))
+        elif stage == "test":
             self.datasets["test"].append(CrowsPairsDataset(data[_STEREOTYPE], self.tokenizer, split='test', sent_type=_STEREOTYPE))
             self.datasets["test"].append(CrowsPairsDataset(data[_ANTI_STEREOTYPE], self.tokenizer, split='test', sent_type=_ANTI_STEREOTYPE))
 
-    def test_dataloader(self):
-        dataloaders = []
-        for dataset in self.datasets["test"]:
-            dataloader = DataLoader(
-                dataset,
-                batch_size=self.batch_size,
-                num_workers=self.num_workers,
-                pin_memory=True,
-                shuffle=False
-            )
-            dataloaders.append(dataloader)
-        return dataloaders
-
 if __name__ == "__main__":
-    cfg = {
-        "training": {"per_device_batch_size":4,},
-        "cache_dir": "~/workspace/unlearning_bias/.cache",
-        "task": {"data_path": "data/crows_pair.json"},
-        "data": {"num_workers": 4},
-    }
+    # PYTHONPATH=$(pwd) python datamodules/crows_pairs.py
+    import unittest
     from omegaconf import OmegaConf
-    cfg = OmegaConf.create(cfg)
 
-    dm = CrowsPairsDataModule(cfg, tokenizer=None)
-    dm.prepare_data()
-    dm.setup('test')
-    dl = dm.test_dataloader()
- 
+    class TestCrowsPairsDataModule(unittest.TestCase):
+        """CrowsPairsDataModule 대한 유닛 테스트"""
+
+        def setUp(self):
+            """테스트 전에 호출되어 테스트 환경을 설정"""
+            self.cfg = {
+                "training": {"per_device_batch_size": 4},
+                "cache_dir": Path(__file__).parent.parent / ".cache",
+                "task": {"data_path": "data/crows_pair.json"},
+                "data": {"num_workers": 4},
+            }
+            self.cfg = OmegaConf.create(self.cfg)
+            self.dm = CrowsPairsDataModule(self.cfg, tokenizer=None)
+
+        def test_prepare_data(self):
+            """prepare_data 메서드가 올바르게 실행되는지 테스트"""
+            try:
+                self.dm.prepare_data()
+            except Exception as e:
+                self.fail(f"prepare_data 실행 중 오류 발생: {e}")
+
+        def test_setup(self):
+            """setup 메서드가 올바르게 실행되는지 테스트"""
+            try:
+                self.dm.setup('test')
+            except Exception as e:
+                self.fail(f"setup 실행 중 오류 발생: {e}")
+
+        def test_test_dataloader(self):
+            """train_dataloader 메서드가 올바르게 실행되는지 테스트"""
+            self.dm.setup('test')
+            try:
+                dl = self.dm.test_dataloader()
+                self.assertIsInstance(dl, DataLoader, "train_dataloader가 DataLoader 객체를 반환해야 함")
+            except Exception as e:
+                self.fail(f"train_dataloader 실행 중 오류 발생: {e}")
+    
+    unittest.main()

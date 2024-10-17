@@ -6,7 +6,8 @@ from dataclasses import dataclass, asdict
 from torch.utils.data import Dataset, DataLoader
 from datasets import load_dataset
 
-from metrics.metric_base import MetricDataModule
+from datamodules import BaseDataModule
+from metrics.text import Perplexity
 
 @dataclass
 class CivilCommentsData:
@@ -49,7 +50,7 @@ class CivilCommentsDataset(Dataset):
             'labels': labels.squeeze()
         }
 
-class CivilCommentsDataModule(MetricDataModule):
+class CivilCommentsDataModule(BaseDataModule):
     def __init__(self, cfg, tokenizer):
         super().__init__()
         self.tokenizer = tokenizer
@@ -57,6 +58,9 @@ class CivilCommentsDataModule(MetricDataModule):
         self.num_workers = cfg.data.num_workers
         self.cache_dir = cfg.cache_dir
         self.data_path = Path(__file__).parent.parent / cfg.task.data_path
+        self.metrics["_train"].update({
+            "ppl": Perplexity()
+        })
 
     def prepare_data(self) -> None:
         if self.data_path.exists():
@@ -94,30 +98,51 @@ class CivilCommentsDataModule(MetricDataModule):
             cache_dir=self.cache_dir,
         )["train"]
         
-        self.datasets = {}
         if stage == "fit":
-            self.datasets["train"] = CivilCommentsDataset(data["social_bias"], self.tokenizer, split='train')
-
-    def train_dataloader(self):
-        return DataLoader(
-            self.datasets["train"],
-            batch_size=self.batch_size,
-            num_workers=self.num_workers,
-            shuffle=True
-        )
+            self.datasets["train"].append(CivilCommentsDataset(data["social_bias"], self.tokenizer, split='train'))
 
 if __name__ == "__main__":
-    cfg = {
-        "training": {"per_device_batch_size":4},
-        "cache_dir": "~/workspace/unlearning_bias/.cache",
-        "task": {"data_path": "data/civil_comments.json"},
-        "data": {"num_workers": 4},
-    }
+    # PYTHONPATH=$(pwd) python datamodules/civil_comments.py
+    import unittest
     from omegaconf import OmegaConf
-    cfg = OmegaConf.create(cfg)
 
-    dm = CivilCommentsDataModule(cfg, tokenizer=None)
-    dm.prepare_data()
-    dm.setup('fit')
-    dl = dm.train_dataloader()
+    class TestCivilCommentsDataModule(unittest.TestCase):
+        """CivilCommentsDataModule에 대한 유닛 테스트"""
+
+        def setUp(self):
+            """테스트 전에 호출되어 테스트 환경을 설정"""
+            self.cfg = {
+                "training": {"per_device_batch_size": 4},
+                "cache_dir": Path(__file__).parent.parent / ".cache",
+                "task": {"data_path": "data/civil_comments.json"},
+                "data": {"num_workers": 4},
+            }
+            self.cfg = OmegaConf.create(self.cfg)
+            self.dm = CivilCommentsDataModule(self.cfg, tokenizer=None)
+
+        def test_prepare_data(self):
+            """prepare_data 메서드가 올바르게 실행되는지 테스트"""
+            try:
+                self.dm.prepare_data()
+            except Exception as e:
+                self.fail(f"prepare_data 실행 중 오류 발생: {e}")
+
+        def test_setup(self):
+            """setup 메서드가 올바르게 실행되는지 테스트"""
+            try:
+                self.dm.setup('fit')
+            except Exception as e:
+                self.fail(f"setup 실행 중 오류 발생: {e}")
+
+        def test_train_dataloader(self):
+            """train_dataloader 메서드가 올바르게 실행되는지 테스트"""
+            self.dm.setup('fit')
+            try:
+                dl = self.dm.train_dataloader()
+                self.assertIsInstance(dl, DataLoader, "train_dataloader가 DataLoader 객체를 반환해야 함")
+            except Exception as e:
+                self.fail(f"train_dataloader 실행 중 오류 발생: {e}")
+    
+    unittest.main()
+
  

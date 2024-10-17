@@ -1,9 +1,9 @@
 # @package _global_
 method:
   name: negtaskvector
-  fit_target: retain  # options: [forget, retain]
-  forget_scaling_coef: 0.6
-  retain_scaling_coef: 1
+  fit_target: forget  # options: [forget, retain]
+  forget_scaling_coef: 1
+  retain_scaling_coef: 0
   run_name: BS${training.train_batch_size}_LR${training.learning_rate}_S${training.seed}
   load_from:
     forget: .checkpoints/${model.name}/${task.name}/finetune/${method.run_name}_forget
@@ -13,8 +13,8 @@ method:
 do_train: false
 training:
   world_size: 1
-  per_device_batch_size: 8
-  gradient_accumulation_steps: 8
+  per_device_batch_size: 4
+  gradient_accumulation_steps: 4
 
 #  python run.py method=negtaskvector
 # python run.py -m method=negtaskvector method.forget_scaling_coef=1e-1,2e-1,1e-2,3e-1

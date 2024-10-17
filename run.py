@@ -11,6 +11,7 @@ print("Importing...")
 from lightning import Trainer, seed_everything
 from lightning.pytorch.loggers import WandbLogger, CSVLogger
 from lightning.pytorch.accelerators import find_usable_cuda_devices
+from lightning.pytorch.callbacks import TQDMProgressBar
 print("Done")
 
 from models import UnlearningBiasModel
@@ -52,7 +53,7 @@ def main(cfg, model_path=None):
 
     cb = Callbacks(cfg)
     callbacks = [
-        # CustomMetricTracker(cfg),
+        TQDMProgressBar(refresh_rate=cfg.logging.progress_bar_refresh_rate),
         cb.get_checkpoint_callback(),
         cb.get_early_stopping(),
         cb.get_early_stop_step(),
@@ -79,13 +80,11 @@ def main(cfg, model_path=None):
         trainer.fit(model, datamodule=model.datamodule)
 
     if cfg.do_eval:
-        assert cfg.method.name != "finetune", "Finetune method is not supported for evaluation"
         if cfg.method.name == "negtaskvector":
             model = create_negtaskvector_model(cfg)
         trainer.validate(model, datamodule=model.datamodule)
         
     if cfg.do_test:
-        assert cfg.method.name != "finetune", "Finetune method is not supported for evaluation"
         if cfg.method.name == "negtaskvector":
             model = create_negtaskvector_model(cfg)
         trainer.test(model, datamodule=model.datamodule)

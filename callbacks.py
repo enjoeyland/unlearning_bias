@@ -51,11 +51,9 @@ class Callbacks:
             self.mode = "max"
             self.filename = "best"
 
-        elif cfg.task.name in ["stereoset", "crows_pairs"] or "combined" in cfg.task.name:
-            self.monitor = None
-            self.mode = "min"
+        elif cfg.task.name in ["stereoset", "crows_pairs"] or ("combined" in cfg.task.name and ("stereoset" in cfg.task.targets or "crows_pairs" in cfg.task.targets)):
             if cfg.method.fit_target == "forget":
-                self.filename = "fppl={train/ppl:.2f}"
+                self.filename = "ppl={train/ppl:.2f}"
         
         elif cfg.task.name == "adult":
             self.monitor = "valid/equal_opportunity"
