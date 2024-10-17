@@ -7,7 +7,7 @@ from torch.utils.data import Dataset, DataLoader
 from datasets import load_dataset
 
 from datamodules import BaseDataModule
-from metrics.classification_metrics import BinaryAccuracy, EqulityOfOpportunity
+from metrics.classification import BinaryAccuracy, EqulityOfOpportunity, StatisticalParityDifference
 
 @dataclass
 class AdultData:
@@ -84,11 +84,13 @@ class AdultDataModule(BaseDataModule):
         self.num_classes = 2 # income >= 50k$ or not
         self.metrics["_train"].update({
             "accuracy": BinaryAccuracy(),
-            "equal_opportunity": EqulityOfOpportunity("is_male"),
+            "equal_opportunity": EqulityOfOpportunity("is_male", num_groups=2),
+            "spd": StatisticalParityDifference("is_male", num_groups=2),
         })
         self.metrics["_valid"].update({
             "accuracy": BinaryAccuracy(),
-            "equal_opportunity": EqulityOfOpportunity("is_male"),
+            "equal_opportunity": EqulityOfOpportunity("is_male", num_groups=2),
+            "spd": StatisticalParityDifference("is_male", num_groups=2),
         })
 
     def prepare_data(self) -> None:
