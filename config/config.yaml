@@ -23,7 +23,7 @@ training:
   learning_rate: ${model.learning_rate}
   lr_scheduler_type: null  # options: [null, linear, cosine]
   # warmup_ratio: 0
-  epochs: 4
+  epochs: 20
 
   dp_strategy: auto  # options: [auto, ddp, deepspeed, deepspeed_stage_1, deepspeed_stage_2, deepspeed_stage_2_offload, deepspeed_stage_3, deepspeed_stage_3_offload]
   world_size: 2
@@ -37,6 +37,7 @@ logging:
   name: ${method.run_name}
   log_dir: .logs/${model.name}/${task.name}/${method.name}
   logging_steps: 500
+  progress_bar: rich  # options: [tqdm, rich]
   progress_bar_refresh_rate: 1
 
 callbacks:

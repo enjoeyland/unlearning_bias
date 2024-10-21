@@ -54,7 +54,7 @@ class StereoSetDataset(Dataset):
             'labels': labels.squeeze()
         }
 
-class StereoSetDataModule(BaseDataModule): # <-- 여기서부터 수정
+class StereoSetDataModule(BaseDataModule):
     ANTI_STEREOTYPE = "anti-stereotype"
     STEREOTYPE = "stereotype"
     UNRELATED = "unrelated"

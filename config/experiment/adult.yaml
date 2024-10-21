@@ -7,7 +7,6 @@ defaults:
 
 training:  
   use_lora: true
-  epochs: 10
 
 callbacks:
   eval_steps: 1.0

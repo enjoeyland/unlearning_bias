@@ -52,7 +52,7 @@ class AdultDataset(Dataset):
         else:
             feature_text.append("is income over 50k$?")
         text = ", ".join(feature_text)
-        
+        # text = f"age is {item['age']}, capital gain is {item['capital_gain']}, capital loss is {item['capital_loss']}, education is {item['education']}, final weight is {item['final_weight']}, hours worked per week is {item['hours_worked_per_week']}, marital status is {item['marital_status']}, native country is {item['native_country']}, occupation is {item['occupation']},"
 
         inputs = self.tokenizer(
             text, 
@@ -80,6 +80,7 @@ class AdultDataModule(BaseDataModule):
         for split in ["train", "valid"]:
             self.data_path[split] = Path(__file__).parent.parent / cfg.task.data_path[split]
         self.fit_target = cfg.method.fit_target
+        self.remove_features = cfg.method.remove_features
         
         self.num_classes = 2 # income >= 50k$ or not
         self.metrics["_train"].update({
@@ -123,7 +124,11 @@ class AdultDataModule(BaseDataModule):
                     workclass=item_data["workclass"],
                     over_threshold=item_data["over_threshold"],
                 )
-                data.append(asdict(entry))
+                if self.fit_target == "forget":
+                    if (entry.is_male and entry.over_threshold) or (not entry.is_male and not entry.over_threshold):
+                        data.append(asdict(entry))
+                else:
+                    data.append(asdict(entry))
             
             split = "train" if split == "train" else "valid"        
             with open(self.data_path[split], "w") as f:
@@ -141,7 +146,7 @@ class AdultDataModule(BaseDataModule):
         
         remove_features = []
         if self.fit_target == "forget":
-            remove_features = ["is_male"]
+            remove_features = self.remove_features
 
         if stage == "fit":
             self.datasets["train"].append(AdultDataset(data["train"], self.tokenizer, split='train', remove_features=remove_features))

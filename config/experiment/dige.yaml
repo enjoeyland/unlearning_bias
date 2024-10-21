@@ -18,5 +18,5 @@ do_eval: false
 do_test: true
 
 # python run.py experiment=dige task=crows_pairs method=original
-# python run.py experiment=dige 
+# python run.py experiment=dige callbacks.max_tolerance=5 callbacks.early_stop_step=null
 # python run.py experiment=dige method=negtaskvector

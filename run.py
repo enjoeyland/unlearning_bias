@@ -11,7 +11,7 @@ print("Importing...")
 from lightning import Trainer, seed_everything
 from lightning.pytorch.loggers import WandbLogger, CSVLogger
 from lightning.pytorch.accelerators import find_usable_cuda_devices
-from lightning.pytorch.callbacks import TQDMProgressBar
+from lightning.pytorch.callbacks import TQDMProgressBar, RichProgressBar
 print("Done")
 
 from models import UnlearningBiasModel
@@ -51,9 +51,14 @@ def main(cfg, model_path=None):
         deepspeed_weights_only(cfg.training.dp_strategy)
         update_deepspeed_initalize(cfg.training.dp_strategy, cfg.training.use_lora)
 
+    if cfg.logging.progress_bar == "tqdm":
+        progress_bar = TQDMProgressBar(refresh_rate=cfg.logging.progress_bar_refresh_rate)
+    elif cfg.logging.progress_bar == "rich":
+        progress_bar = RichProgressBar(refresh_rate=cfg.logging.progress_bar_refresh_rate)
+
     cb = Callbacks(cfg)
     callbacks = [
-        TQDMProgressBar(refresh_rate=cfg.logging.progress_bar_refresh_rate),
+        progress_bar,
         cb.get_checkpoint_callback(),
         cb.get_early_stopping(),
         cb.get_early_stop_step(),
@@ -98,8 +103,20 @@ def create_negtaskvector_model(cfg):
 
     saved_forget_ckpt = glob(f"{cfg.method.load_from.forget}/*.ckpt")
     forget_ckpt = [item for item in saved_forget_ckpt if "forget" in item.split("/")[-1]]
+
+    def ckpt_metrics(ckpt):
+        ckpt = ckpt.split("/")[-1]
+        for item in ckpt.split(".ckpt")[0].split("_")[-1].split("-"):
+            if cfg.method.metric in item:
+                return float(item.split(f"{cfg.method.metric}=")[-1])
+        print(f"Metric {cfg.method.metric} not found in {ckpt}")
+        if cfg.method.mode == "min":
+            return float("inf")
+        else:
+            return float("-inf")
+
     try:
-        forget_ckpt = sorted(forget_ckpt, key=lambda x: float(x.split("/")[-1].split(".ckpt")[0].split("=")[-1]))[0]
+        forget_ckpt = sorted(forget_ckpt, key=ckpt_metrics)[0 if cfg.method.mode == "min" else -1]
     except IndexError:
         print(forget_ckpt)
         raise FileNotFoundError(f"Forget ckpt not found in {cfg.method.load_from.forget}")
@@ -107,13 +124,10 @@ def create_negtaskvector_model(cfg):
         print(forget_ckpt)
         raise e
     forget_ckpt_metrics = forget_ckpt.split("/")[-1].split(".ckpt")[0].split("_")[-1]
-    print("Start creating forget task vector model")
+    print(f"Start creating forget task vector mode from {forget_ckpt.split("/")[-1]}")
     forget_tv = TaskVector(pretraind_model, forget_ckpt)
-    print("Forget task vector model is created")
 
-    print("Start applying forget task vector to pretrained model")
     model = (-forget_tv).apply_to(pretraind_model, scaling_coef=cfg.method.forget_scaling_coef)
-    print("Forget task vector is applied to pretrained model")
     model_name = f"negtv_fs{cfg.method.forget_scaling_coef}_{forget_ckpt_metrics}"
 
     if cfg.method.retain_scaling_coef != 0:
@@ -121,13 +135,14 @@ def create_negtaskvector_model(cfg):
         retain_ckpt = [item for item in saved_retain_ckpt if f"retain" in item.split("/")[-1]]
         assert retain_ckpt, f"Retain ckpt not found in {cfg.method.load_from.retain}"
         try:
-            retain_ckpt = sorted(retain_ckpt, key=lambda x: float(x.split("/")[-1].split(".ckpt")[0].split("=")[-1]))[0]
+            retain_ckpt = sorted(retain_ckpt, key=ckpt_metrics)[0 if cfg.method.mode == "min" else -1]
         except IndexError:
             print(retain_ckpt)
             raise FileNotFoundError(f"Retain ckpt not found in {cfg.method.load_from.retain}")
         except ValueError as e:
             print(retain_ckpt)
             print(e)
+        print(f"Start creating retain task vector mode from {retain_ckpt.split("/")[-1]}")
         retain_ckpt_metrics = retain_ckpt.split("/")[-1].split(".ckpt")[0].split("_")[-1]
         retain_tv = TaskVector(pretraind_model, retain_ckpt)
 

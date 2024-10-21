@@ -9,12 +9,16 @@ method:
     forget: .checkpoints/${model.name}/${task.name}/finetune/${method.run_name}_forget
     retain: .checkpoints/${model.name}/${task.name}/finetune/${method.run_name}_retain
   save_model: false
+  metric: bias_score
+  mode: max
 
 do_train: false
+do_test: true
+
 training:
   world_size: 1
   per_device_batch_size: 4
   gradient_accumulation_steps: 4
 
-#  python run.py method=negtaskvector
+# python run.py method=negtaskvector method.fit_target=retain method.forget_scaling_coef=-1 method.retain_scaling_coef=-0.5
 # python run.py -m method=negtaskvector method.forget_scaling_coef=1e-1,2e-1,1e-2,3e-1

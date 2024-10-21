@@ -5,6 +5,8 @@ task:
   data_path: 
     train: data/adult_train.json
     valid: data/adult_valid.json
+  remove_features:
+    - is_male
 
 training:
   world_size: 2

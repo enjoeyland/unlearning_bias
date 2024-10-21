@@ -141,28 +141,15 @@ class UnlearningBiasModel(LightningModule):
 
     def on_train_epoch_end(self) -> None:
         metrics = self.datamodule.on_epoch_end("train")
-        self.log_dict(metrics, logger=True)
+        self.log_dict(metrics, prog_bar=True, logger=True, sync_dist=True)
 
     def on_validation_epoch_end(self):
         metrics = self.datamodule.on_epoch_end("valid")
-        self.log_dict(metrics, logger=True, add_dataloader_idx=False)
+        self.log_dict(metrics, prog_bar=True, logger=True, add_dataloader_idx=False, sync_dist=True)
 
     def on_test_epoch_end(self):
         metrics = self.datamodule.on_epoch_end("test")
-        self.log_dict(metrics, logger=True, add_dataloader_idx=False)
-    #     metrics = {}
-    #     if self.hparams.task.name in ["crows_pairs", "combined_cc_ss_cp"]:
-    #         self.test_metrics[2]["bias_score"].update("stereotype", self.test_metrics[0]["sent_probs"].compute())
-    #         metrics["test/stereo_probs"] = self.test_metrics[0]["sent_probs"].compute().mean()
-    #         self.test_metrics[2]["bias_score"].update("anti-stereotype", self.test_metrics[1]["sent_probs"].compute())
-    #         metrics["test/antistereo_probs"] = self.test_metrics[1]["sent_probs"].compute().mean()
-    #         metrics["test/bias_score"] = self.test_metrics[2]["bias_score"].compute()
-
-    #         self.log_dict(metrics, logger=True, add_dataloader_idx=False)
-
-    #         self.test_metrics[0]["sent_probs"].reset()
-    #         self.test_metrics[0]["sent_probs"].reset()
-    #         self.test_metrics[2]["bias_score"].reset()
+        self.log_dict(metrics, prog_bar=True, logger=True, add_dataloader_idx=False, sync_dist=True)
 
     def configure_optimizers(self):
         cuda_major, cuda_minor = installed_cuda_version()
