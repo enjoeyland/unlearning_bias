@@ -53,12 +53,14 @@ class Callbacks:
 
         elif cfg.task.name in ["stereoset", "crows_pairs"] or ("combined" in cfg.task.name and ("stereoset" in cfg.task.targets or "crows_pairs" in cfg.task.targets)):
             if cfg.method.fit_target == "forget":
-                self.filename = "ppl={train/ppl:.2f}"
+                self.monitor = "valid/bias_score"
+                self.mode = "max"
+                self.filename = "ppl={valid/ppl/dataloader_idx_0:.2f}-bias_score={valid/bias_score:.4f}"
         
         elif cfg.task.name == "adult":
-            self.monitor = "valid/equal_opportunity"
-            self.mode = "min"
-            self.filename = "acc={valid/accuracy:.3f}-eo={valid/equal_opportunity:.4f}"
+            self.monitor = "valid/accuracy"
+            self.mode = "max"
+            self.filename = "acc={valid/accuracy:.3f}-eo={valid/equal_opportunity:.4f}-spd={valid/spd:.4f}"
 
         else:
             print(f"Task {cfg.task.name} is not setup for callbacks.")  
