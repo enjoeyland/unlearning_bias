@@ -155,3 +155,62 @@ def get_model(ckpt):
     elif isinstance(ckpt, torch.nn.Module):
         model = ckpt
     return model
+
+def select_ckpts(cfg):
+    from glob import glob
+    from pathlib import Path
+
+    def ckpt_metrics(ckpt):
+        ckpt = ckpt.split("/")[-1]
+        for item in ckpt.split(".ckpt")[0].split("_")[-1].split("-"):
+            if cfg.method.metric in item:
+                return float(item.split(f"{cfg.method.metric}=")[-1])
+        else:
+            print(f"Metric {cfg.method.metric} not found.")
+        if cfg.method.mode == "min":
+            return float("inf")
+        else:
+            return float("-inf")
+        
+    forget_ckpt = None
+    forget_ckpt_metrics = ""
+    if cfg.method.forget_scaling_coef != 0:
+        if cfg.method.load_ckpts.forget:
+            forget_ckpt = str(Path(cfg.method.load_dir.forget) / cfg.method.load_ckpts.forget)
+        else:
+            saved_forget_ckpt = glob(f"{cfg.method.load_dir.forget}/*.ckpt")
+            forget_ckpt = [item for item in saved_forget_ckpt if "forget" in item.split("/")[-1]]
+
+            try:
+                forget_ckpt = sorted(forget_ckpt, key=ckpt_metrics)[0 if cfg.method.mode == "min" else -1]
+            except IndexError:
+                print(forget_ckpt)
+                raise FileNotFoundError(f"Forget ckpt not found in {cfg.method.load_dir.forget}")
+            except ValueError as e:
+                print(forget_ckpt)
+                raise e
+        print(f"Selected forget ckpt: {forget_ckpt.split('/')[-1]}")
+        forget_ckpt_metrics = forget_ckpt.split("/")[-1].split(".ckpt")[0].split("_")[-1]
+
+    retain_ckpt = None
+    retain_ckpt_metrics = ""
+
+    if cfg.method.retain_scaling_coef != 0:
+        if cfg.method.load_ckpts.retain:
+            retain_ckpt = str(Path(cfg.method.load_dir.retain) / cfg.method.load_ckpts.retain)
+        else:
+            saved_retain_ckpt = glob(f"{cfg.method.load_dir.retain}/*.ckpt")
+            retain_ckpt = [item for item in saved_retain_ckpt if f"retain" in item.split("/")[-1]]
+            assert retain_ckpt, f"Retain ckpt not found in {cfg.method.load_dir.retain}"
+            try:
+                retain_ckpt = sorted(retain_ckpt, key=ckpt_metrics)[0 if cfg.method.mode == "min" else -1]
+            except IndexError:
+                print(retain_ckpt)
+                raise FileNotFoundError(f"Retain ckpt not found in {cfg.method.load_dir.retain}")
+            except ValueError as e:
+                print(retain_ckpt)
+                print(e)
+        print(f"Selected retain ckpt: {retain_ckpt.split('/')[-1]}")
+        retain_ckpt_metrics = retain_ckpt.split("/")[-1].split(".ckpt")[0].split("_")[-1]
+    
+    return forget_ckpt, retain_ckpt, forget_ckpt_metrics, retain_ckpt_metrics

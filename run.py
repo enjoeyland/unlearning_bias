@@ -3,7 +3,6 @@ load_dotenv()
 
 import os
 import hydra
-from glob import glob
 from functools import reduce
 from omegaconf import OmegaConf
 
@@ -15,9 +14,9 @@ from lightning.pytorch.callbacks import TQDMProgressBar, RichProgressBar
 print("Done")
 
 from models import UnlearningBiasModel
-from callbacks import Callbacks, CustomMetricTracker
-from utils import deepspeed_weights_only, update_deepspeed_initalize
-
+from callbacks import Callbacks
+from utils import deepspeed_weights_only, update_deepspeed_initalize, select_ckpts
+from task_vectors import create_model_from_ckpt
 
 OmegaConf.register_new_resolver("mul", lambda *args: reduce(lambda x, y: x * y, args))
 
@@ -46,6 +45,11 @@ def main(cfg, model_path=None):
         model = UnlearningBiasModel.load_from_checkpoint(model_path, hparams=cfg)
     else:
         model = UnlearningBiasModel(cfg)
+    
+    if cfg.method.name == "negtaskvector":
+        assert not cfg.do_train, "Negtaskvector method is not supported for training"
+        model.configure_model()
+        model = create_model_from_ckpt(cfg, model, *select_ckpts(cfg))
 
     if "deepspeed" in cfg.training.dp_strategy:
         deepspeed_weights_only(cfg.training.dp_strategy)
@@ -81,81 +85,13 @@ def main(cfg, model_path=None):
     )
 
     if cfg.do_train:
-        assert cfg.method.name != "negtaskvector", "Negtaskvector method is not supported for training"
         trainer.fit(model, datamodule=model.datamodule)
 
     if cfg.do_eval:
-        if cfg.method.name == "negtaskvector":
-            model = create_negtaskvector_model(cfg)
         trainer.validate(model, datamodule=model.datamodule)
         
     if cfg.do_test:
-        if cfg.method.name == "negtaskvector":
-            model = create_negtaskvector_model(cfg)
         trainer.test(model, datamodule=model.datamodule)
-
-def create_negtaskvector_model(cfg):
-    from task_vectors import TaskVector
-    pretraind_model = UnlearningBiasModel(cfg)
-    print(f"Start configuring pretrained model from pretrained_model")
-    pretraind_model.configure_model()
-    print(f"Pretrained model is configured")
-
-    saved_forget_ckpt = glob(f"{cfg.method.load_from.forget}/*.ckpt")
-    forget_ckpt = [item for item in saved_forget_ckpt if "forget" in item.split("/")[-1]]
-
-    def ckpt_metrics(ckpt):
-        ckpt = ckpt.split("/")[-1]
-        for item in ckpt.split(".ckpt")[0].split("_")[-1].split("-"):
-            if cfg.method.metric in item:
-                return float(item.split(f"{cfg.method.metric}=")[-1])
-        print(f"Metric {cfg.method.metric} not found in {ckpt}")
-        if cfg.method.mode == "min":
-            return float("inf")
-        else:
-            return float("-inf")
-
-    try:
-        forget_ckpt = sorted(forget_ckpt, key=ckpt_metrics)[0 if cfg.method.mode == "min" else -1]
-    except IndexError:
-        print(forget_ckpt)
-        raise FileNotFoundError(f"Forget ckpt not found in {cfg.method.load_from.forget}")
-    except ValueError as e:
-        print(forget_ckpt)
-        raise e
-    forget_ckpt_metrics = forget_ckpt.split("/")[-1].split(".ckpt")[0].split("_")[-1]
-    print(f"Start creating forget task vector mode from {forget_ckpt.split("/")[-1]}")
-    forget_tv = TaskVector(pretraind_model, forget_ckpt)
-
-    model = (-forget_tv).apply_to(pretraind_model, scaling_coef=cfg.method.forget_scaling_coef)
-    model_name = f"negtv_fs{cfg.method.forget_scaling_coef}_{forget_ckpt_metrics}"
-
-    if cfg.method.retain_scaling_coef != 0:
-        saved_retain_ckpt = glob(f"{cfg.method.load_from.retain}/*.ckpt")
-        retain_ckpt = [item for item in saved_retain_ckpt if f"retain" in item.split("/")[-1]]
-        assert retain_ckpt, f"Retain ckpt not found in {cfg.method.load_from.retain}"
-        try:
-            retain_ckpt = sorted(retain_ckpt, key=ckpt_metrics)[0 if cfg.method.mode == "min" else -1]
-        except IndexError:
-            print(retain_ckpt)
-            raise FileNotFoundError(f"Retain ckpt not found in {cfg.method.load_from.retain}")
-        except ValueError as e:
-            print(retain_ckpt)
-            print(e)
-        print(f"Start creating retain task vector mode from {retain_ckpt.split("/")[-1]}")
-        retain_ckpt_metrics = retain_ckpt.split("/")[-1].split(".ckpt")[0].split("_")[-1]
-        retain_tv = TaskVector(pretraind_model, retain_ckpt)
-
-        model = retain_tv.apply_to(model, scaling_coef=cfg.method.retain_scaling_coef)
-        model_name += f"-rs{cfg.method.retain_scaling_coef}_{retain_ckpt_metrics}"
-    
-    if cfg.method.save_model:
-        model_path = f"{cfg.output_dir}/{model_name}.ckpt"
-        if not os.path.exists(model_path):
-            import torch
-            torch.save(model, model_path)
-    return model
-
 
 if __name__ == "__main__":
     main()

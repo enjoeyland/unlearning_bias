@@ -28,19 +28,37 @@ class TaskVector():
     
     def __add__(self, other):
         """Add two task vectors together."""
-        with torch.no_grad():
-            new_vector = {}
-            for key in self.vector:
-                if key not in other.vector:
-                    print(f'Warning, key {key} is not present in both task vectors.')
-                    continue
-                new_vector[key] = self.vector[key] + other.vector[key]
-        return TaskVector(vector=new_vector)
-
-    def __radd__(self, other):
         if other is None or isinstance(other, int):
             return self
+        if isinstance(other, TaskVector):
+            with torch.no_grad():
+                new_vector = {}
+                for key in self.vector:
+                    if key not in other.vector:
+                        print(f'Warning, key {key} is not present in both task vectors.')
+                        continue
+                    new_vector[key] = self.vector[key] + other.vector[key]
+            return TaskVector(vector=new_vector)
+        
+        elif isinstance(other, torch.nn.Module):
+            model_state_dict = get_state_dict(other)
+            with torch.no_grad():
+                for key in self.vector:
+                    if key not in model_state_dict:
+                        print(f'Warning: key {key} is present in the task vector but not in the pretrained state dict')
+                        continue
+                    model_state_dict[key] += self.vector[key]
+            return other
+        
+
+    def __radd__(self, other):
         return self.__add__(other)
+
+    def __sub__(self, other):
+        return self.__add__(-other)
+    
+    def __rsub__(self, other):
+        return (-self).__add__(other)
 
     def __neg__(self):
         """Negate a task vector."""
@@ -58,6 +76,19 @@ class TaskVector():
                 new_vector[key] = self.vector[key] / scalar
         return TaskVector(vector=new_vector)
 
+    def __mul__(self, scalar):
+        """Multiply a task vector by a scalar."""
+        if not isinstance(scalar, int) and not isinstance(scalar, float):
+            raise ValueError(f"Expected scalar to be of type int or float, got {type(scalar)}")
+        with torch.no_grad():
+            new_vector = {}
+            for key in self.vector:
+                new_vector[key] = self.vector[key] * scalar
+        return TaskVector(vector=new_vector)
+
+    def __rmul__(self, scalar):
+        return self.__mul__(scalar)
+
     def maximum(self, other):
         """Element-wise maximum of two task vectors."""
         with torch.no_grad():
@@ -69,37 +100,56 @@ class TaskVector():
                 new_vector[key] = torch.maximum(self.vector[key], other.vector[key])
         return TaskVector(vector=new_vector)
 
-    def apply_to(self, pretrained_checkpoint, scaling_coef=1.0):
-        """Apply a task vector to a pretrained model."""
-        with torch.no_grad():
-            pretrained_model = get_model(pretrained_checkpoint)
-            pretrained_state_dict = get_state_dict(pretrained_checkpoint)
-            for key in pretrained_state_dict:
-                if key not in self.vector:
-                    print(f'Warning: key {key} is present in the pretrained state dict but not in the task vector')
-                    continue
-                pretrained_state_dict[key] += scaling_coef * self.vector[key]
-        return pretrained_model
+    # def apply_to(self, pretrained_checkpoint, scaling_coef=1.0):
+    #     """Apply a task vector to a pretrained model."""
+    #     with torch.no_grad():
+    #         pretrained_model = get_model(pretrained_checkpoint)
+    #         pretrained_state_dict = get_state_dict(pretrained_checkpoint)
+    #         for key in pretrained_state_dict:
+    #             if key not in self.vector:
+    #                 print(f'Warning: key {key} is present in the pretrained state dict but not in the task vector')
+    #                 continue
+    #             pretrained_state_dict[key] += scaling_coef * self.vector[key]
+    #     return pretrained_model
+def create_model_from_ckpt(cfg, pretraind_model, forget_ckpt, retain_ckpt, forget_ckpt_metrics="", retain_ckpt_metrics=""):
+    model = pretraind_model
+    model_name = "negtv"
+    if forget_ckpt:
+        forget_tv = TaskVector(pretraind_model, forget_ckpt)
+        model -= cfg.method.forget_scaling_coef * forget_tv
+        model_name += f"-fs{cfg.method.forget_scaling_coef}_{forget_ckpt_metrics}"
+    if retain_ckpt:
+        retain_tv = TaskVector(pretraind_model, retain_ckpt)
+        model += cfg.method.retain_scaling_coef * retain_tv
+        model_name += f"-rs{cfg.method.retain_scaling_coef}_{retain_ckpt_metrics}"
     
+    if cfg.method.save_model:
+        import os
+        model_path = f"{cfg.output_dir}/{model_name}.ckpt"
+        if not os.path.exists(model_path):
+            import torch
+            torch.save(model, model_path)
+    return model
 
 if __name__ == "__main__":
-    import lightning as L
-    from transformers import AutoModelForCausalLM
+    ...
+    # import lightning as L
+    # from transformers import AutoModelForCausalLM
 
-    ckpt = "/home/nas1_userA/minseokchoi20/kyunghyun/multilingual_unlearning/.checkpoints/xglm-564M/flores/negtaskvector/BS32_LR0.0003_W0.1_S42/fxma=0.6075-fxppl=10.01-vxppl=97.70.ckpt"
+    # ckpt = "/home/nas1_userA/minseokchoi20/kyunghyun/multilingual_unlearning/.checkpoints/xglm-564M/flores/negtaskvector/BS32_LR0.0003_W0.1_S42/fxma=0.6075-fxppl=10.01-vxppl=97.70.ckpt"
 
-    class MultilingualModel(L.LightningModule):
-        def __init__(self):
-            super().__init__()
-            self.model = AutoModelForCausalLM.from_pretrained(
-                "facebook/xglm-564M",
-                cache_dir="../.cache",
-                resume_download=True,
-            )
-    model = MultilingualModel()
+    # class MultilingualModel(L.LightningModule):
+    #     def __init__(self):
+    #         super().__init__()
+    #         self.model = AutoModelForCausalLM.from_pretrained(
+    #             "facebook/xglm-564M",
+    #             cache_dir="../.cache",
+    #             resume_download=True,
+    #         )
+    # model = MultilingualModel()
     
-    print(model.state_dict()["model.model.embed_tokens.weight"])
+    # print(model.state_dict()["model.model.embed_tokens.weight"])
 
-    task_vector = TaskVector(model, ckpt)
-    new_model = (-task_vector).apply_to(model, scaling_coef=10)
-    print(new_model.state_dict()["model.model.embed_tokens.weight"])
+    # task_vector = TaskVector(model, ckpt)
+    # new_model = (-task_vector).apply_to(model, scaling_coef=10)
+    # print(new_model.state_dict()["model.model.embed_tokens.weight"])
