@@ -5,9 +5,12 @@ method:
   forget_scaling_coef: 1
   retain_scaling_coef: 1
   run_name: BS${training.train_batch_size}_LR${training.learning_rate}_S${training.seed}
-  load_from:
+  load_dir:
     forget: .checkpoints/${model.name}/${task.name}/finetune/${method.run_name}_forget
     retain: .checkpoints/${model.name}/${task.name}/finetune/${method.run_name}_retain
+  load_ckpts:
+    forget: null
+    retain: null
   save_model: false
   metric: spd
   mode: max
@@ -21,4 +24,4 @@ training:
   gradient_accumulation_steps: 8
 
 # python run.py method=negtaskvector_adult method.forget_scaling_coef=-1 method.retain_scaling_coef=-0.5
-# python run.py -m method=negtaskvector_adult method.forget_scaling_coef=0,0.4,0.8,1.2,1.6,2,2.4
+# python run.py -m method=negtaskvector_adult method.forget_scaling_coef=0,0.4,0.8,1.2,1.6,2,2.4 method.retain_scaling_coef=0.9

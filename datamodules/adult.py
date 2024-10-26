@@ -1,5 +1,6 @@
 import json
 import torch
+import random
 
 from pathlib import Path
 from dataclasses import dataclass, asdict
@@ -28,12 +29,13 @@ class AdultData:
 
 
 class AdultDataset(Dataset):
-    def __init__(self, data, tokenizer, split='train', max_length=128, remove_features=[]):
+    def __init__(self, data, tokenizer, split='train', max_length=128, remove_features=[], shuffle_features=True):
         self.data = data
         self.split = split
         self.tokenizer = tokenizer
         self.max_length = max_length
         self.remove_features = remove_features
+        self.shuffle_features = shuffle_features
 
     def __len__(self):
         return len(self.data)
@@ -41,14 +43,17 @@ class AdultDataset(Dataset):
     def __getitem__(self, idx):
         item = self.data[idx]
 
-        feature_text = [] 
-        for k,v in item.items():
-            if k in self.remove_features+["over_threshold"]:
+        feature_text = []
+        features = list(item.keys())
+        if self.shuffle_features:
+            random.shuffle(features)
+        for feature in features:
+            if feature in self.remove_features+["over_threshold"]:
                 continue
-            elif k == "is_male":
-                feature_text.append(f"gender is {"male" if v else "female"}")
+            elif feature == "is_male":
+                feature_text.append(f"gender is {"male" if item[feature] else "female"}")
             else:
-                feature_text.append(f"{' '.join(k.split('_'))} is {v}")
+                feature_text.append(f"{' '.join(feature.split('_'))} is {item[feature]}")
         else:
             feature_text.append("is income over 50k$?")
         text = ", ".join(feature_text)
@@ -80,7 +85,8 @@ class AdultDataModule(BaseDataModule):
         for split in ["train", "valid"]:
             self.data_path[split] = Path(__file__).parent.parent / cfg.task.data_path[split]
         self.fit_target = cfg.method.fit_target
-        self.remove_features = cfg.method.remove_features
+        self.remove_features = cfg.task.remove_features
+        self.shuffle_features = cfg.task.shuffle_features
         
         self.num_classes = 2 # income >= 50k$ or not
         self.metrics["_train"].update({
@@ -149,11 +155,11 @@ class AdultDataModule(BaseDataModule):
             remove_features = self.remove_features
 
         if stage == "fit":
-            self.datasets["train"].append(AdultDataset(data["train"], self.tokenizer, split='train', remove_features=remove_features))
-            self.datasets["valid"].append(AdultDataset(data["valid"], self.tokenizer, split='valid', remove_features=remove_features))
+            self.datasets["train"].append(AdultDataset(data["train"], self.tokenizer, split='train', remove_features=remove_features, shuffle_features=self.shuffle_features))
+            self.datasets["valid"].append(AdultDataset(data["valid"], self.tokenizer, split='valid', remove_features=remove_features, shuffle_features=self.shuffle_features))
         
         elif stage == "validate":
-            self.datasets["valid"].append(AdultDataset(data["valid"], self.tokenizer, split='valid', remove_features=remove_features))
+            self.datasets["valid"].append(AdultDataset(data["valid"], self.tokenizer, split='valid', remove_features=remove_features, shuffle_features=self.shuffle_features))
 
 
 if __name__ == "__main__":

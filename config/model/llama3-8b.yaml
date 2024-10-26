@@ -1,0 +1,14 @@
+# @package _global_
+method:
+    name: llama3-8b
+    hf: meta-llama/Meta-Llama-3-8B
+    type: decoder
+    learning_rate: 5e-4
+
+training:
+    world_size: 1
+    per_device_batch_size: 1
+    gradient_accumulation_steps: 8
+
+
+# python run.py -m model=llama3-8b method.fit_target=forget,retain
