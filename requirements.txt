@@ -6,3 +6,4 @@ hydra-core
 datasets
 peft
 deepspeed
+# aif360

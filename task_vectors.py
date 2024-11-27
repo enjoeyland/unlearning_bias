@@ -100,29 +100,78 @@ class TaskVector():
                 new_vector[key] = torch.maximum(self.vector[key], other.vector[key])
         return TaskVector(vector=new_vector)
 
-    # def apply_to(self, pretrained_checkpoint, scaling_coef=1.0):
-    #     """Apply a task vector to a pretrained model."""
-    #     with torch.no_grad():
-    #         pretrained_model = get_model(pretrained_checkpoint)
-    #         pretrained_state_dict = get_state_dict(pretrained_checkpoint)
-    #         for key in pretrained_state_dict:
-    #             if key not in self.vector:
-    #                 print(f'Warning: key {key} is present in the pretrained state dict but not in the task vector')
-    #                 continue
-    #             pretrained_state_dict[key] += scaling_coef * self.vector[key]
-    #     return pretrained_model
+    def analysis(self):
+        """Prints the analysis of the task vector. exclude 0 values and print mean and min and max values."""
+        with torch.no_grad():
+            for key in self.vector:
+                if torch.all(self.vector[key] == 0):
+                    continue
+                print(f"Key: {key}, Mean: {self.vector[key].mean().item()}, Min: {self.vector[key].min().item()}, Max: {self.vector[key].max().item()}")
+
+    def make_perpendicular(self, other):
+        """Make the task vector perpendicular to another task vector. self.vector is 2d so Gram-Schmidt is used."""
+        with torch.no_grad():
+            new_vector = {}
+            for key in self.vector:
+                if key not in other.vector:
+                    print(f'Warning, key {key} is not present in both task vectors.')
+                    continue
+                if torch.all(self.vector[key] == 0):
+                    continue
+                new_vector[key] = torch.zeros_like(self.vector[key])
+                for i in range(self.vector[key].size(1)):
+                    self_vector = self.vector[key][:, i]
+                    other_vector = other.vector[key][:, i]
+                    new_vector[key][:, i] = self_vector - (self_vector @ other_vector) / (other_vector @ other_vector) * other_vector
+                    new_vector[key][:, i] /= torch.norm(new_vector[key][:, i])
+                    
+        return TaskVector(vector=new_vector)
+    
+    def normalize(self, use_lora=False):
+        if not use_lora:
+            with torch.no_grad():
+                for key in self.vector:
+                    if torch.all(self.vector[key] == 0):
+                        continue
+                    self.vector[key] /= torch.norm(self.vector[key])
+        if use_lora:
+            with torch.no_grad():
+                pair = []
+                for key in self.vector:
+                    if torch.all(self.vector[key] == 0):
+                        continue
+                    if "lora_A" in key:
+                        pair.append(key)
+                        continue
+                    elif "lora_B" in key:
+                        pair.append(key)
+                        assert pair[0].replace("lora_A", "lora_B") == pair[1]
+                        w = self.vector[pair[1]] @ self.vector[pair[0]]
+                        self.vector[pair[1]] /= torch.norm(w)
+                        pair = []
+                    else:
+                        ...
+        return self
+        
+
 def create_model_from_ckpt(cfg, pretraind_model, forget_ckpt, retain_ckpt, forget_ckpt_metrics="", retain_ckpt_metrics=""):
     model = pretraind_model
     model_name = "negtv"
     if forget_ckpt:
         forget_tv = TaskVector(pretraind_model, forget_ckpt)
+        if cfg.method.normalize:
+            forget_tv = forget_tv.normalize(use_lora=cfg.training.use_lora)
         model -= cfg.method.forget_scaling_coef * forget_tv
         model_name += f"-fs{cfg.method.forget_scaling_coef}_{forget_ckpt_metrics}"
+        del forget_tv
     if retain_ckpt:
         retain_tv = TaskVector(pretraind_model, retain_ckpt)
+        if cfg.method.normalize:
+            retain_tv = retain_tv.normalize(use_lora=cfg.training.use_lora)
         model += cfg.method.retain_scaling_coef * retain_tv
         model_name += f"-rs{cfg.method.retain_scaling_coef}_{retain_ckpt_metrics}"
-    
+        del retain_tv
+
     if cfg.method.save_model:
         import os
         model_path = f"{cfg.output_dir}/{model_name}.ckpt"

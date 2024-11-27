@@ -9,7 +9,8 @@ class BinaryAccuracy(classification.BinaryAccuracy, MetricHandler):
     def on_step(self, split, outputs, batch, batch_idx, dataloader_idx=0, *args, **kwargs):
         preds = outputs.logits.argmax(dim=1)
         target = batch["labels"]
-        return self(preds, target)
+        print("device:",preds.device, target.device)
+        return self(preds.to("cuda:0"), target.to("cuda:0"))
 
 class EqulityOfOpportunity(classification.BinaryFairness, MetricHandler):
     def __init__(self, group_name, num_groups, **kwargs):

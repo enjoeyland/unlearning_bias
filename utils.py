@@ -136,10 +136,13 @@ def get_state_dict(ckpt):
     model = get_model(ckpt)
     if isinstance(model, dict) and 'state_dict' in model:
         state_dict = model['state_dict']
+        for key in state_dict:
+            state_dict[key] = state_dict[key].cpu()
     elif isinstance(model, dict) and 'module' in model:
         state_dict = model['module']
+        for key in state_dict:
+            state_dict[key] = state_dict[key].cpu()
     elif isinstance(model, Module):
-        model.to('cuda:0')
         state_dict = model.state_dict()
     return state_dict
 

@@ -46,7 +46,7 @@ def main(cfg, model_path=None):
     else:
         model = UnlearningBiasModel(cfg)
     
-    if cfg.method.name == "negtaskvector":
+    if cfg.method.name == "negtaskvector" or cfg.method.name == "forget_finetune":
         assert not cfg.do_train, "Negtaskvector method is not supported for training"
         model.configure_model()
         model = create_model_from_ckpt(cfg, model, *select_ckpts(cfg))
