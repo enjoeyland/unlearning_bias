@@ -9,7 +9,7 @@ from transformers.utils import logging
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 from pytorch_lightning.core.saving import save_hparams_to_yaml
 
-from datamodules import XNLIDataModule, FLORESDataModule, BMLAMADataModule, StereoSetDataModule, CivilCommentsDataModule, CrowsPairsDataModule, CombinedDataModule, AdultDataModule
+from datamodules import XNLIDataModule, FLORESDataModule, BMLAMADataModule, StereoSetDataModule, CivilCommentsDataModule, CrowsPairsDataModule, CombinedDataModule, AdultDataModule, CompasDataModule
 from utils import installed_cuda_version
 
 logging.get_logger("transformers").setLevel(logging.ERROR)
@@ -42,6 +42,8 @@ class UnlearningBiasModel(LightningModule):
             return CrowsPairsDataModule(self.hparams, self.tokenizer)
         elif task == "adult":
             return AdultDataModule(self.hparams, self.tokenizer)
+        elif task == "compas":
+            return CompasDataModule(self.hparams, self.tokenizer)
         else:
             raise NotImplementedError(f"Task {task} not implemented.")
 

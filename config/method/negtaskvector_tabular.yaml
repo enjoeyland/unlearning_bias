@@ -14,6 +14,7 @@ method:
   save_model: false
   metric: spd
   mode: max
+  normalize: false
 
 do_train: false
 do_eval: true
@@ -23,5 +24,4 @@ training:
   per_device_batch_size: 4
   gradient_accumulation_steps: 8
 
-# python run.py method=negtaskvector_adult method.forget_scaling_coef=-1 method.retain_scaling_coef=-0.5
-# python run.py -m method=negtaskvector_adult method.forget_scaling_coef=0,0.4,0.8,1.2,1.6,2,2.4 method.retain_scaling_coef=0.9
+# python run.py -m method=negtaskvector_tabular method.retain_scaling_coef=0.9 method.forget_scaling_coef=0,0.4,0.8,1.2,1.6,2,2.4 

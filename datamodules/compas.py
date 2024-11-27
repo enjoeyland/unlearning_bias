@@ -10,31 +10,24 @@ from datasets import load_dataset
 from datamodules import BaseDataModule
 from metrics.classification import BinaryAccuracy, EqulityOfOpportunity, StatisticalParityDifference
 
-# 새롭게 datamodule 만들때 할일
-# 1. datamodule 수정
-# 2. __init__.py에서 import 추가
-# 3. model.py에서 DataModule 추가
-# 4. callbacks.py에서 monitor 추가
-
 @dataclass
-class AdultData:
-    age: int
-    capital_gain: float
-    capital_loss: float
-    education: str # Education level: the higher, the more educated the person.
-    final_weight: int
-    hours_worked_per_week: int
-    marital_status: str
-    native_country: str
-    occupation: str # Job of the person
-    race: str
-    relationship: str
+class CompasData:
     is_male: bool
-    workclass: str
-    over_threshold: int # 1 for income >= 50k$, 0 otherwise.
+    age: int
+    race: str
+    number_of_juvenile_fellonies: int
+    decile_score: int
+    number_of_juvenile_misdemeanors: int
+    number_of_other_juvenile_offenses: int
+    days_before_screening_arrest: int
+    is_recidivous: bool
+    days_in_custody: int
+    is_violent_recidivous: bool
+    violence_decile_score: int
+    two_year_recidivous: bool
 
 
-class AdultDataset(Dataset):
+class CompasDataset(Dataset):
     def __init__(self, data, tokenizer, split='train', max_length=128, remove_features=[], shuffle_features=True):
         self.data = data
         self.split = split
@@ -58,8 +51,10 @@ class AdultDataset(Dataset):
                 continue
             elif feature == "is_male":
                 feature_text.append(f"gender is {"male" if item[feature] else "female"}")
+            elif feature.startswith("is_"):
+                feature_text.append(f"one is {"" if item[feature] else "not"} {' '.join(feature.split('_')[1:])}")
             else:
-                feature_text.append(f"{' '.join(feature.split('_'))} is {item[feature]}")
+                feature_text.append(f"{feature.replace('_', ' ')} is {item[feature]}")
         else:
             feature_text.append("is income over 50k$?")
         text = ", ".join(feature_text)
@@ -76,11 +71,11 @@ class AdultDataset(Dataset):
         return {
             'input_ids': inputs['input_ids'].squeeze(),
             'attention_mask': inputs['attention_mask'].squeeze(),
-            'labels': torch.tensor(item['over_threshold']),
+            'labels': torch.tensor(item['two_year_recidivous']),
             'is_male': torch.tensor(item['is_male'], dtype=torch.bool),
         }
 
-class AdultDataModule(BaseDataModule):
+class CompasDataModule(BaseDataModule):
     def __init__(self, cfg, tokenizer):
         super().__init__()
         self.tokenizer = tokenizer
@@ -93,6 +88,7 @@ class AdultDataModule(BaseDataModule):
         self.fit_target = cfg.method.fit_target
         self.remove_features = cfg.task.remove_features
         self.shuffle_features = cfg.task.shuffle_features
+        self.seed = cfg.training.seed
         
         self.num_classes = 2 # income >= 50k$ or not
         self.metrics["_train"].update({
@@ -110,38 +106,36 @@ class AdultDataModule(BaseDataModule):
         if self.data_path["train"].exists() and self.data_path["valid"].exists():
             return
 
-        print("Preparing Adult dataset")
+        print("Preparing Compas dataset")
 
-        encode_dataset = load_dataset("mstz/adult", "encoding", cache_dir=self.cache_dir)["train"]
-        dataset = load_dataset("mstz/adult", "income", cache_dir=self.cache_dir)
-        
-        education_dict = {item['encoded_value']: item['original_value'] for item in encode_dataset}
-   
-        for split in dataset:
+        dataset = load_dataset("mstz/compas", "two-years-recidividity", cache_dir=self.cache_dir)["train"]
+        dataset = dataset.train_test_split(test_size=0.1, seed=self.seed)
+
+        for split in ["train", "test"]:
             data = []
             for item_data in dataset[split]:
-                entry = AdultData(
-                    age=item_data["age"],
-                    capital_gain=item_data["capital_gain"],
-                    capital_loss=item_data["capital_loss"],
-                    education=education_dict[item_data["education"]-1],
-                    final_weight=item_data["final_weight"],
-                    hours_worked_per_week=item_data["hours_worked_per_week"],
-                    marital_status=item_data["marital_status"],
-                    native_country=item_data["native_country"],
-                    occupation=item_data["occupation"],
-                    race=item_data["race"],
-                    relationship=item_data["relationship"],
+                entry = CompasData(
                     is_male=item_data["is_male"],
-                    workclass=item_data["workclass"],
-                    over_threshold=item_data["over_threshold"],
+                    age=item_data["age"],
+                    race=item_data["race"],
+                    number_of_juvenile_fellonies=item_data["number_of_juvenile_fellonies"],
+                    decile_score=item_data["decile_score"],
+                    number_of_juvenile_misdemeanors=item_data["number_of_other_juvenile_offenses"],
+                    number_of_other_juvenile_offenses=item_data["number_of_other_juvenile_offenses"],
+                    days_before_screening_arrest=item_data["days_before_screening_arrest"],
+                    is_recidivous=item_data["is_recidivous"],
+                    days_in_custody=item_data["days_in_custody"],
+                    is_violent_recidivous=item_data["is_violent_recidivous"],
+                    violence_decile_score=item_data["violence_decile_score"],
+                    two_year_recidivous=item_data["two_year_recidivous"],
                 )
+
                 if self.fit_target == "forget":
-                    if (entry.is_male and entry.over_threshold) or (not entry.is_male and not entry.over_threshold):
+                    if (entry.is_male and entry.two_year_recidivous) or (not entry.is_male and not entry.two_year_recidivous):
                         data.append(asdict(entry))
                 else:
                     data.append(asdict(entry))
-            
+                
             split = "train" if split == "train" else "valid"        
             with open(self.data_path[split], "w") as f:
                 json.dump(data, f, indent=2)
@@ -161,31 +155,42 @@ class AdultDataModule(BaseDataModule):
             remove_features = self.remove_features
 
         if stage == "fit":
-            self.datasets["train"].append(AdultDataset(data["train"], self.tokenizer, split='train', remove_features=remove_features, shuffle_features=self.shuffle_features))
-            self.datasets["valid"].append(AdultDataset(data["valid"], self.tokenizer, split='valid', remove_features=remove_features, shuffle_features=self.shuffle_features))
+            self.datasets["train"].append(CompasDataset(data["train"], self.tokenizer, split='train', remove_features=remove_features, shuffle_features=self.shuffle_features))
+            self.datasets["valid"].append(CompasDataset(data["valid"], self.tokenizer, split='valid', remove_features=remove_features, shuffle_features=self.shuffle_features))
         
         elif stage == "validate":
-            self.datasets["valid"].append(AdultDataset(data["valid"], self.tokenizer, split='valid', remove_features=remove_features, shuffle_features=self.shuffle_features))
+            self.datasets["valid"].append(CompasDataset(data["valid"], self.tokenizer, split='valid', remove_features=remove_features, shuffle_features=self.shuffle_features))
 
 
 if __name__ == "__main__":
-    # PYTHONPATH=$(pwd) python datamodules/adult.py
+    # PYTHONPATH=$(pwd) python datamodules/compas.py
     import unittest
     from omegaconf import OmegaConf
 
-    class TestAdultDataModule(unittest.TestCase):
-        """AdultDataModule에 대한 유닛 테스트"""
+    class TestCompasDataModule(unittest.TestCase):
+        """CompasDataModule에 대한 유닛 테스트"""
 
         def setUp(self):
             """테스트 전에 호출되어 테스트 환경을 설정"""
             self.cfg = {
-                "training": {"per_device_batch_size": 4},
+                "training": {
+                    "per_device_batch_size": 4,
+                    "seed": 42,
+                },
                 "cache_dir": Path(__file__).parent.parent / ".cache",
-                "task": {"data_path": {"train": "data/adult_train.json", "valid": "data/adult_valid.json"}},
+                "task": {
+                    "data_path": {
+                        "train": "data/compas_train_retain.json",
+                        "valid": "data/compas_valid_retain.json",
+                    },
+                    "remove_features": [],
+                    "shuffle_features": False,
+                },
                 "data": {"num_workers": 4},
+                "method": {"fit_target": "retain"},
             }
             self.cfg = OmegaConf.create(self.cfg)
-            self.dm = AdultDataModule(self.cfg, tokenizer=None)
+            self.dm = CompasDataModule(self.cfg, tokenizer=None)
 
         def test_prepare_data(self):
             """prepare_data 메서드가 올바르게 실행되는지 테스트"""

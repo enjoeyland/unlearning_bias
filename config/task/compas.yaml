@@ -1,0 +1,16 @@
+# @package _global_
+task:
+  name: compas
+  task_type: SEQ_CLS # options: [CAUSAL_LM, SEQ_CLS]
+  data_path: 
+    train: data/compas_train_${method.fit_target}.json
+    valid: data/compas_valid_${method.fit_target}.json
+  remove_features: []
+  shuffle_features: true
+
+training:
+  world_size: 2
+  per_device_batch_size: 16
+  gradient_accumulation_steps: 1
+
+#  python run.py task=compas

@@ -6,6 +6,7 @@ from .stereoset import StereoSetDataModule
 from .civil_comments import CivilCommentsDataModule
 from .crows_pairs import CrowsPairsDataModule
 from .adult import AdultDataModule
+from .compas import CompasDataModule
 
 FLORES_LANGUAGES = FLORESDataModule.SUPPORTED_LANGUAGES
 BMLAMA_LANGUAGES_17 = BMLAMADataModule.SUPPORTED_LANGUAGES_17

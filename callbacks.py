@@ -57,7 +57,7 @@ class Callbacks:
                 self.mode = "max"
                 self.filename = "ppl={valid/ppl/dataloader_idx_0:.2f}-bias_score={valid/bias_score:.4f}"
         
-        elif cfg.task.name == "adult":
+        elif cfg.task.name == "adult" or cfg.task.name == "compas":
             self.monitor = "valid/accuracy"
             self.mode = "max"
             self.filename = "acc={valid/accuracy:.3f}-eo={valid/equal_opportunity:.4f}-spd={valid/spd:.4f}"

@@ -2,7 +2,7 @@ project_name: unlearning_bias
 
 defaults:
   - _self_
-  - experiment: adult
+  - experiment: tabular
 
 cache_dir: .cache/
 
