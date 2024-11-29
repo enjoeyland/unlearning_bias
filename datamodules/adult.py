@@ -10,12 +10,6 @@ from datasets import load_dataset
 from datamodules import BaseDataModule
 from metrics.classification import BinaryAccuracy, EqulityOfOpportunity, StatisticalParityDifference
 
-# 새롭게 datamodule 만들때 할일
-# 1. datamodule 수정
-# 2. __init__.py에서 import 추가
-# 3. model.py에서 DataModule 추가
-# 4. callbacks.py에서 monitor 추가
-
 @dataclass
 class AdultData:
     age: int
