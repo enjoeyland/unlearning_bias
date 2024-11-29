@@ -1,11 +1,10 @@
-import re
 import json
 import torch
 
 from pathlib import Path
 from collections import defaultdict
 from dataclasses import dataclass, asdict
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import DataLoader
 from datasets import load_dataset
 from torchmetrics import Metric
 from torchmetrics.utilities import dim_zero_cat
@@ -14,6 +13,7 @@ from torchmetrics.functional.text import perplexity
 from datamodules import BaseDataModule
 from metrics.metric_base import MetricHandler
 from metrics.text import Perplexity
+from datamodules.preference import MultiPromptDataset, MultiPromptDataCollator
 
 _STEREOTYPE = "stereotype"
 _ANTI_STEREOTYPE = "anti-stereotype"
@@ -22,7 +22,8 @@ _BIAS_TYPE = ["race-color","socioeconomic", "gender", "disability", "nationality
 @dataclass
 class CrowsPairsData:
     id: int
-    sentence: str
+    stereotype: str
+    antistereotype: str
     bias_type: int
     historically_disadvantaged_group: int
 
@@ -31,8 +32,10 @@ class BiasScoreDerivation(Metric, MetricHandler):
     antistereo_ppl: torch.Tensor
 
     def __init__(self, ignore_index=-100):
+        import warnings
+        warnings.warn("This class is deprecated. No mathmetical way to calculate the bias score. Use T-Test instead.", DeprecationWarning)
+        
         super().__init__()
-
         self.ignore_index = ignore_index
         self.add_state("stereo_ppl", default=[], dist_reduce_fx="cat")
         self.add_state("antistereo_ppl", default=[], dist_reduce_fx="cat")
@@ -78,38 +81,6 @@ class BiasScoreDerivation(Metric, MetricHandler):
         self.reset()
         return bias_score
 
-class CrowsPairsDataset(Dataset):
-    def __init__(self, data, tokenizer, split='test', max_length=64, sent_type=_STEREOTYPE):
-        self.data = data
-        self.split = split
-        self.tokenizer = tokenizer
-        self.max_length = max_length
-        self.sent_type = sent_type
-
-    def __len__(self):
-        return len(self.data)
-
-    def __getitem__(self, idx):
-        item = self.data[idx]
-        inputs = self.tokenizer(
-            f"{item['sentence']}",
-            padding='max_length',
-            max_length=self.max_length,
-            truncation=True,
-            return_tensors='pt'
-        )
-
-        labels = inputs['input_ids'].clone()
-        labels[labels == self.tokenizer.pad_token_id] = -100
-
-        return {
-            'input_ids': inputs['input_ids'].squeeze(),
-            'attention_mask': inputs['attention_mask'].squeeze(),
-            'labels': labels.squeeze(),
-            'sent_type': self.sent_type,
-            'bias_type': item['bias_type'],
-        }
-
 class CrowsPairsDataModule(BaseDataModule):
     def __init__(self, cfg, tokenizer):
         super().__init__()
@@ -118,7 +89,8 @@ class CrowsPairsDataModule(BaseDataModule):
         self.num_workers = cfg.data.num_workers
         self.cache_dir = cfg.cache_dir
         self.data_path = Path(__file__).parent.parent / cfg.task.data_path
-        
+        self.is_pairwised = cfg.method.name == "dpo"
+
         self.metrics["_valid"].update({
             "ppl": Perplexity(ignore_index=-100),
             "bias_score": BiasScoreDerivation(),
@@ -129,6 +101,8 @@ class CrowsPairsDataModule(BaseDataModule):
             "bias_score": BiasScoreDerivation(),
         })
         
+        self.collate_fn = MultiPromptDataCollator(tokenizer, mlm=False)
+
     def prepare_data(self) -> None:
         if self.data_path.exists():
             return
@@ -137,25 +111,18 @@ class CrowsPairsDataModule(BaseDataModule):
         dataset = load_dataset("nyu-mll/crows_pairs", cache_dir=self.cache_dir, trust_remote_code=True)
         
         max_length = 0
-        data = defaultdict(list)
+        data = []
         for item_data in dataset["test"]:
-            stereo_entry = CrowsPairsData(
-                sentence=item_data["sent_more"],
+            entry = CrowsPairsData(
+                stereotype=item_data["sent_more"],
+                antistereotype=item_data["sent_less"],
                 bias_type=item_data["bias_type"],
                 id=item_data["id"],
                 historically_disadvantaged_group=item_data["stereo_antistereo"]^1,
             )
-            data[_STEREOTYPE].append(asdict(stereo_entry))
+            data.append(asdict(entry))
 
-            antistereo_entry = CrowsPairsData(
-                sentence=item_data["sent_less"],
-                bias_type=item_data["bias_type"],
-                id=item_data["id"],
-                historically_disadvantaged_group=item_data["stereo_antistereo"],
-            )
-            data[_ANTI_STEREOTYPE].append(asdict(antistereo_entry))
-
-            max_length = max(max_length, len(stereo_entry.sentence.split()), len(antistereo_entry.sentence.split()))    
+            max_length = max(max_length, len(entry.stereotype.split()), len(entry.antistereotype.split()))    
         print(f"Max length: {max_length}")
 
         with open(self.data_path, "w") as f:
@@ -169,15 +136,24 @@ class CrowsPairsDataModule(BaseDataModule):
         )["train"]
 
         self.datatsets = defaultdict(list)
-        if stage == "fit" or stage == "validate":
-            self.datasets["valid"].append(CrowsPairsDataset(data[_STEREOTYPE], self.tokenizer, split='valid', sent_type=_STEREOTYPE))
-            self.datasets["valid"].append(CrowsPairsDataset(data[_ANTI_STEREOTYPE], self.tokenizer, split='valid', sent_type=_ANTI_STEREOTYPE))
-        elif stage == "test":
-            self.datasets["test"].append(CrowsPairsDataset(data[_STEREOTYPE], self.tokenizer, split='test', sent_type=_STEREOTYPE))
-            self.datasets["test"].append(CrowsPairsDataset(data[_ANTI_STEREOTYPE], self.tokenizer, split='test', sent_type=_ANTI_STEREOTYPE))
+
+        if self.is_pairwised:
+            if stage == "fit":
+                self.datasets["train"].append(MultiPromptDataset(data, self.tokenizer, prompt_fields=["stereotype", "antistereotype"], split='train', max_length=64))
+            elif stage == "validate":
+                self.datasets["valid"].append(MultiPromptDataset(data, self.tokenizer, prompt_fields=["stereotype", "antistereotype"], split='valid', max_length=64))
+            elif stage == "test":
+                self.datasets["test"].append(MultiPromptDataset(data, self.tokenizer, prompt_fields=["stereotype", "antistereotype"], split='test', max_length=64))
+        else:
+            if stage == "fit" or stage == "validate":
+                self.datasets["valid"].append(MultiPromptDataset(data, self.tokenizer, prompt_fields=["stereotype"], split='valid', max_length=64))
+                self.datasets["valid"].append(MultiPromptDataset(data, self.tokenizer, prompt_fields=["antistereotype"], split='valid', max_length=64))
+            elif stage == "test":
+                self.datasets["test"].append(MultiPromptDataset(data, self.tokenizer, prompt_fields=["stereotype"], split='test', max_length=64))
+                self.datasets["test"].append(MultiPromptDataset(data, self.tokenizer, prompt_fields=["antistereotype"], split='test', max_length=64))
 
 if __name__ == "__main__":
-    # PYTHONPATH=$(pwd) python datamodules/crows_pairs.py
+    # PYTHONPATH=$(pwd) python datamodules/crews_pairs.py
     import unittest
     from omegaconf import OmegaConf
 
@@ -191,6 +167,7 @@ if __name__ == "__main__":
                 "cache_dir": Path(__file__).parent.parent / ".cache",
                 "task": {"data_path": "data/crows_pair.json"},
                 "data": {"num_workers": 4},
+                "method": {"name": "dpo"},
             }
             self.cfg = OmegaConf.create(self.cfg)
             self.dm = CrowsPairsDataModule(self.cfg, tokenizer=None)
@@ -210,12 +187,14 @@ if __name__ == "__main__":
                 self.fail(f"setup 실행 중 오류 발생: {e}")
 
         def test_test_dataloader(self):
-            """train_dataloader 메서드가 올바르게 실행되는지 테스트"""
+            """test_dataloader 메서드가 올바르게 실행되는지 테스트"""
             self.dm.setup('test')
             try:
-                dl = self.dm.test_dataloader()
-                self.assertIsInstance(dl, DataLoader, "train_dataloader가 DataLoader 객체를 반환해야 함")
+                dls = self.dm.test_dataloader()
+                self.assertIsInstance(dls, list, "test_dataloader가 list 객체를 반환해야 함")
+                for dl in dls:
+                    self.assertIsInstance(dl, DataLoader, "test_dataloader가 DataLoader 객체를 반환해야 함")
             except Exception as e:
-                self.fail(f"train_dataloader 실행 중 오류 발생: {e}")
+                self.fail(f"test_dataloader 실행 중 오류 발생: {e}")
     
     unittest.main()

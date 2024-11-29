@@ -1,16 +1,17 @@
 from pathlib import Path
 from collections import defaultdict
 from lightning import LightningDataModule
-from torch.utils.data import  DataLoader, ConcatDataset
+from torch.utils.data import  DataLoader, ConcatDataset, Dataset
 
 from metrics.metric_base import MetricDataModule
 
 class DatasetLoaderModule(LightningDataModule):
     def __init__(self):
         super().__init__()
-        self.datasets = defaultdict(list)
+        self.datasets: dict[str,list[Dataset]] = defaultdict(list)
+        self.collate_fn = None
 
-    def train_dataloader(self):
+    def train_dataloader(self) -> DataLoader:
         if not self.datasets["train"]:
             print("No training data found")
             return None
@@ -20,10 +21,11 @@ class DatasetLoaderModule(LightningDataModule):
             batch_size=self.batch_size,
             num_workers=self.num_workers,
             pin_memory=True,
-            shuffle=True
+            shuffle=True,
+            collate_fn=self.collate_fn
         )
 
-    def val_dataloader(self):
+    def val_dataloader(self) -> list[DataLoader]:
         if not self.datasets["valid"]:
             print("No validation data found")
             return None
@@ -35,12 +37,13 @@ class DatasetLoaderModule(LightningDataModule):
                 batch_size=self.batch_size,
                 num_workers=self.num_workers,
                 pin_memory=True,
-                shuffle=False
+                shuffle=False,
+                collate_fn=self.collate_fn
             )
             dataloaders.append(dataloader)
         return dataloaders
 
-    def test_dataloader(self):
+    def test_dataloader(self) -> list[DataLoader]:
         if not self.datasets["test"]:
             print("No test data found")
             return None
@@ -52,7 +55,8 @@ class DatasetLoaderModule(LightningDataModule):
                 batch_size=self.batch_size,
                 num_workers=self.num_workers,
                 pin_memory=True,
-                shuffle=False
+                shuffle=False,
+                collate_fn=self.collate_fn
             )
             dataloaders.append(dataloader)
         return dataloaders
