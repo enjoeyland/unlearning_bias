@@ -19,7 +19,7 @@ python -u run.py \
     # training.seed=0 \
 
     ### negative task vector
-    # method=negtaskvector_adult \
+    # method=negtaskvector_tabular \
     # method.retain_scaling_coef=0.9 \
     # method.forget_scaling_coef=0,0.4,0.8,1.2,1.6,2,2.4,2.8,3.2,3.6,4,4.4,4.8,5.2,5.6,6 \
 

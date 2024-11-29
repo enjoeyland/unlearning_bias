@@ -108,8 +108,8 @@ class TaskVector():
                     continue
                 print(f"Key: {key}, Mean: {self.vector[key].mean().item()}, Min: {self.vector[key].min().item()}, Max: {self.vector[key].max().item()}")
 
-    def make_perpendicular(self, other):
-        """Make the task vector perpendicular to another task vector. self.vector is 2d so Gram-Schmidt is used."""
+    def make_perpendicular(self, other): # 잘 안됨...
+        """Make the task vector perpendicular to another task vector."""
         with torch.no_grad():
             new_vector = {}
             for key in self.vector:
@@ -119,14 +119,14 @@ class TaskVector():
                 if torch.all(self.vector[key] == 0):
                     continue
                 new_vector[key] = torch.zeros_like(self.vector[key])
-                for i in range(self.vector[key].size(1)):
-                    self_vector = self.vector[key][:, i]
-                    other_vector = other.vector[key][:, i]
-                    new_vector[key][:, i] = self_vector - (self_vector @ other_vector) / (other_vector @ other_vector) * other_vector
-                    new_vector[key][:, i] /= torch.norm(new_vector[key][:, i])
-                    
+
+                self_vector = self.vector[key].view(-1)
+                other_vector = other.vector[key].view(-1)
+                new_vector[key] = self_vector - (self_vector @ other_vector) / (other_vector @ other_vector) * other_vector
+                new_vector[key] /= torch.norm(new_vector[key])
+                new_vector[key] = new_vector[key].view(self.vector[key].shape)
         return TaskVector(vector=new_vector)
-    
+
     def normalize(self, use_lora=False):
         if not use_lora:
             with torch.no_grad():
@@ -161,16 +161,19 @@ def create_model_from_ckpt(cfg, pretraind_model, forget_ckpt, retain_ckpt, forge
         forget_tv = TaskVector(pretraind_model, forget_ckpt)
         if cfg.method.normalize:
             forget_tv = forget_tv.normalize(use_lora=cfg.training.use_lora)
-        model -= cfg.method.forget_scaling_coef * forget_tv
-        model_name += f"-fs{cfg.method.forget_scaling_coef}_{forget_ckpt_metrics}"
-        del forget_tv
+        model_name += f"-fs{cfg.method.forget_scaling_coef}_{forget_ckpt_metrics}"    
     if retain_ckpt:
         retain_tv = TaskVector(pretraind_model, retain_ckpt)
         if cfg.method.normalize:
             retain_tv = retain_tv.normalize(use_lora=cfg.training.use_lora)
-        model += cfg.method.retain_scaling_coef * retain_tv
         model_name += f"-rs{cfg.method.retain_scaling_coef}_{retain_ckpt_metrics}"
-        del retain_tv
+    if forget_ckpt and retain_ckpt and cfg.method.make_perpendicular:
+        forget_tv = forget_tv.make_perpendicular(retain_tv)
+        model_name += "-perp"
+    if forget_ckpt:
+        model -= cfg.method.forget_scaling_coef * forget_tv
+    if retain_ckpt:
+        model += cfg.method.retain_scaling_coef * retain_tv
 
     if cfg.method.save_model:
         import os

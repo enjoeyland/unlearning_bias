@@ -15,6 +15,7 @@ method:
   metric: spd
   mode: max
   normalize: false
+  make_perpendicular: false
 
 do_train: false
 do_eval: true

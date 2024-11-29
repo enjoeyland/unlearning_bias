@@ -2,7 +2,7 @@
 defaults:
   - _self_
   - /task: adult_filter
-  - /method: finetune  # options: [original, negtaskvector, finetune]
+  - /method: finetune  # options: [original, negtaskvector_tabular, finetune]
   - /model: opt-1.3b
 
 training:  
