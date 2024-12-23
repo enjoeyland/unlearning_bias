@@ -13,7 +13,7 @@ from lightning.pytorch.accelerators import find_usable_cuda_devices
 from lightning.pytorch.callbacks import TQDMProgressBar, RichProgressBar
 print("Done")
 
-from models import UnlearningBiasModel
+from models import BasicModel, DpoModel
 from callbacks import Callbacks
 from utils import deepspeed_weights_only, update_deepspeed_initalize, select_ckpts
 from task_vectors import create_model_from_ckpt
@@ -41,10 +41,15 @@ def main(cfg, model_path=None):
             name=cfg.logging.name,
         )
 
-    if model_path:
-        model = UnlearningBiasModel.load_from_checkpoint(model_path, hparams=cfg)
+    if cfg.method.name == "dpo":
+        model_cls = DpoModel
     else:
-        model = UnlearningBiasModel(cfg)
+        model_cls = BasicModel
+
+    if model_path:
+        model = model_cls.load_from_checkpoint(model_path, hparams=cfg)
+    else:
+        model = model_cls(cfg)
     
     if cfg.method.name == "negtaskvector" or cfg.method.name == "forget_finetune":
         assert not cfg.do_train, "Negtaskvector method is not supported for training"

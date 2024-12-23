@@ -1,0 +1,17 @@
+# @package _global_
+method:
+  name : dpo
+  fit_target: forget  # options: [forget, retain]
+  run_name: BS${training.train_batch_size}_LR${training.learning_rate}_S${training.seed}_${method.fit_target}
+  beta: 0.1
+  reference_free: false
+  label_smoothing: 0
+
+training:
+  dp_strategy: ddp_find_unused_parameters_true
+
+callbacks:
+  eval_steps: null
+  max_tolerance: null
+
+# python run.py method=dpo task=crows_pairs

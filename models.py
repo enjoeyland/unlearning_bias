@@ -1,13 +1,10 @@
-import os
 import torch
 import deepspeed
 
 from lightning import LightningModule
-from torchmetrics import Accuracy
 from transformers import AutoTokenizer, AutoModelForSequenceClassification, AutoModelForCausalLM, get_linear_schedule_with_warmup, get_cosine_schedule_with_warmup, BitsAndBytesConfig
 from transformers.utils import logging
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
-from pytorch_lightning.core.saving import save_hparams_to_yaml
 
 from datamodules import StereoSetDataModule, CivilCommentsDataModule, CrowsPairsDataModule, CombinedDataModule, AdultDataModule, CompasDataModule
 from utils import installed_cuda_version
@@ -15,7 +12,7 @@ from utils import installed_cuda_version
 logging.get_logger("transformers").setLevel(logging.ERROR)
 
 
-class UnlearningBiasModel(LightningModule):
+class BasicModel(LightningModule):
     def __init__(self, hparams):
         super().__init__()
         self.save_hyperparameters(hparams)
@@ -47,16 +44,17 @@ class UnlearningBiasModel(LightningModule):
         else:
             raise NotImplementedError(f"Task {task} not implemented.")
 
-    def configure_model(self):
-        if self.model is not None:
-            return
-
+    def _get_target_modules(self):
         if "opt" in self.hparams.model.name:
-            target_modules = ["k_proj", "q_proj", "v_proj", "out_proj"]
+            return ["k_proj", "q_proj", "v_proj", "out_proj"]
         else:
             model = AutoModelForCausalLM.from_pretrained(self.hparams.model.hf, cache_dir=self.hparams.cache_dir)
             print(model)
             raise ValueError(f"Model {self.hparams.model.name} not supported.")
+
+    def configure_model(self):
+        if self.model is not None:
+            return
         
         model_kwargs = {}
 
@@ -97,7 +95,7 @@ class UnlearningBiasModel(LightningModule):
                 lora_dropout=0.1,
                 bias="none",
                 task_type=self.hparams.task.task_type,
-                target_modules="all-linear" if self.hparams.training.use_qlora else target_modules,
+                target_modules="all-linear" if self.hparams.training.use_qlora else self._get_target_modules(),
                 inference_mode=not self.hparams.do_train
             )
             
@@ -200,3 +198,59 @@ class UnlearningBiasModel(LightningModule):
                 "monitor": "val_loss",
             },
         }
+
+from dpo import dpo_loss, get_batch_logps
+class DpoModel(BasicModel):
+    def __init__(self, hparams):
+        super().__init__(hparams)
+        self.ref_model = None
+    
+    def configure_model(self):
+        super().configure_model()
+        self.ref_model = self.model
+        self.ref_model.eval()
+
+        self.model = None
+        super().configure_model()
+    
+    def forward(self, input_ids, attention_mask, labels=None, **inputs):
+        return self.model(input_ids, attention_mask=attention_mask, labels=labels)
+
+    def _get_logps(self, outputs, batch):
+        all_logps = get_batch_logps(outputs.logits, batch['labels'], average_log_prob=False)
+        chosen_logps = all_logps[:batch['labels'].size(0)//2]
+        rejected_logps = all_logps[batch['labels'].size(0)//2:]
+        return chosen_logps, rejected_logps
+    
+    def training_step(self, batch, batch_idx):
+        policy_outputs = self(batch['input_ids'], attention_mask=batch['attention_mask'], labels=batch['labels'])
+        policy_chosen_logps, policy_rejected_logps = self._get_logps(policy_outputs, batch)
+        
+        if self.hparams.method.reference_free:
+            reference_chosen_logps = torch.zeros_like(policy_chosen_logps)
+            reference_rejected_logps = torch.zeros_like(policy_rejected_logps)
+        else:
+            with torch.no_grad():
+                ref_outputs = self.ref_model(batch['input_ids'], attention_mask=batch['attention_mask'])
+            reference_chosen_logps, reference_rejected_logps = self._get_logps(ref_outputs, batch)
+
+        loss_kwargs = {'beta': self.hparams.method.beta, 'reference_free': self.hparams.method.reference_free, 'label_smoothing': self.hparams.method.label_smoothing}
+        losses, chosen_rewards, rejected_rewards = dpo_loss(policy_chosen_logps, policy_rejected_logps, reference_chosen_logps, reference_rejected_logps, **loss_kwargs)
+        loss = losses.mean()
+
+        reward_accuracies = (chosen_rewards > rejected_rewards).float()
+        metrics = {
+            f'train/loss': loss,
+            f'train/rewards_chosen': chosen_rewards.mean(),
+            f'train/rewards_rejected': rejected_rewards.mean(),
+            f'train/rewards_accuracy': reward_accuracies.mean(),
+            f'train/rewards_margins': (chosen_rewards - rejected_rewards).mean(),
+            f'train/logpsrejected': policy_rejected_logps.mean(),
+            f'train/logpschosen': policy_chosen_logps.mean(),
+        }
+        metrics.update(self.datamodule.on_step("train", policy_outputs, batch, batch_idx, ref_outputs=ref_outputs))
+        self.log_dict(metrics, on_step=True, prog_bar=True, logger=True, batch_size=batch["input_ids"].size(0), sync_dist=True)
+        return losses.mean()
+    
+    def validation_step(self, batch, batch_idx, dataloader_idx=0):
+        pass

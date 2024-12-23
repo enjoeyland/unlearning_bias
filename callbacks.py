@@ -20,39 +20,11 @@ class Callbacks:
         self.mode = "min"
         self.filename = "best"
 
-        if cfg.task.name == "flores":
-            self.monitor = "val/forget_xma"
-            self.mode = "min"
-            self.filename = "fxma={val/forget_xma:.4f}-fxppl={val/forget_xppl:.2f}-xppl={val/val_xppl:.2f}"
 
-            if cfg.method.name == "finetune":
-                self.mode = "min"
-                self.monitor = f"val/{cfg.method.fit_target}_xppl"
-                if cfg.method.fit_target == "forget":
-                    self.filename = "fxppl={val/forget_xppl:.2f}-xppl={val/val_xppl:.2f}"
-                if cfg.method.fit_target == "retain":
-                    self.filename =  f"rxppl={{val/retain_xppl:.2f}}-xppl={{val/val_xppl:.2f}}"
-        
-        elif "bmlama" in cfg.task.name:
-            self.monitor = "val/forget_xpa"
-            self.mode = "min"
-            self.filename = "fxpa={val/forget_xpa:.4f}-fxppl={val/forget_xppl:.2f}-xppl={val/val_xppl:.2f}"
-            
-            if cfg.method.name == "finetune":
-                self.mode = "min"
-                self.monitor = f"val/{cfg.method.fit_target}_sent_xppl"
-                if cfg.method.fit_target == "forget":
-                    self.filename = "fxppl={val/forget_sent_xppl:.2f}-xppl={val/val_sent_xppl:.2f}"
-                if cfg.method.fit_target == "retain":
-                    self.filename = f"rxppl={{val/retain_sent_xppl:.2f}}-xppl={{val/val_sent_xppl:.2f}}"
-        
-        elif cfg.task.name == "xnli":
-            self.monitor = "val_accuracy"
-            self.mode = "max"
-            self.filename = "best"
-
-        elif cfg.task.name in ["stereoset", "crows_pairs"] or ("combined" in cfg.task.name and ("stereoset" in cfg.task.targets or "crows_pairs" in cfg.task.targets)):
-            if cfg.method.fit_target == "forget":
+        if cfg.task.name in ["stereoset", "crows_pairs"] or ("combined" in cfg.task.name and ("stereoset" in cfg.task.targets or "crows_pairs" in cfg.task.targets)):
+            if cfg.method.name == "dpo":
+                ...
+            elif cfg.method.fit_target == "forget":
                 self.monitor = "valid/bias_score"
                 self.mode = "max"
                 self.filename = "ppl={valid/ppl/dataloader_idx_0:.2f}-bias_score={valid/bias_score:.4f}"

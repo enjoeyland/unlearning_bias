@@ -25,7 +25,7 @@ training:
   # warmup_ratio: 0
   epochs: 20
 
-  dp_strategy: auto  # options: [auto, ddp, deepspeed, deepspeed_stage_1, deepspeed_stage_2, deepspeed_stage_2_offload, deepspeed_stage_3, deepspeed_stage_3_offload]
+  dp_strategy: auto  # options: [auto, ddp, ddp_find_unused_parameters_true, deepspeed, deepspeed_stage_1, deepspeed_stage_2, deepspeed_stage_2_offload, deepspeed_stage_3, deepspeed_stage_3_offload]
   world_size: 2
   per_device_batch_size: 4
   gradient_accumulation_steps: 2

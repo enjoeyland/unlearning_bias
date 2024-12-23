@@ -13,7 +13,7 @@ from torchmetrics.functional.text import perplexity
 from datamodules import BaseDataModule
 from metrics.metric_base import MetricHandler
 from metrics.text import Perplexity
-from datamodules.preference import MultiPromptDataset, MultiPromptDataCollator
+from datamodules.preference import MultiPromptDataset, MultiPromptDataCollator, ConcatDataCollator
 
 _STEREOTYPE = "stereotype"
 _ANTI_STEREOTYPE = "anti-stereotype"
@@ -90,18 +90,17 @@ class CrowsPairsDataModule(BaseDataModule):
         self.cache_dir = cfg.cache_dir
         self.data_path = Path(__file__).parent.parent / cfg.task.data_path
         self.is_pairwised = cfg.method.name == "dpo"
+        self.max_length = 64
 
-        self.metrics["_valid"].update({
-            "ppl": Perplexity(ignore_index=-100),
-            "bias_score": BiasScoreDerivation(),
-        })
-
-        self.metrics["_test"].update({
-            "ppl": Perplexity(ignore_index=-100),
-            "bias_score": BiasScoreDerivation(),
-        })
+        self.metrics["_valid"].update({"ppl": Perplexity(ignore_index=-100)})
+        self.metrics["_test"].update({"ppl": Perplexity(ignore_index=-100)})
         
-        self.collate_fn = MultiPromptDataCollator(tokenizer, mlm=False)
+        if self.is_pairwised:
+            self.collate_fn = ConcatDataCollator(tokenizer, mlm=False)
+        else:
+            self.collate_fn = MultiPromptDataCollator(tokenizer, mlm=False)
+            self.metrics["_valid"].update({"bias_score": BiasScoreDerivation()})
+            self.metrics["_test"].update({"bias_score": BiasScoreDerivation()})
 
     def prepare_data(self) -> None:
         if self.data_path.exists():
@@ -123,7 +122,7 @@ class CrowsPairsDataModule(BaseDataModule):
             data.append(asdict(entry))
 
             max_length = max(max_length, len(entry.stereotype.split()), len(entry.antistereotype.split()))    
-        print(f"Max length: {max_length}")
+        print(f"Max length: {max_length}") # 40
 
         with open(self.data_path, "w") as f:
             json.dump(data, f, indent=2)
@@ -139,18 +138,21 @@ class CrowsPairsDataModule(BaseDataModule):
 
         if self.is_pairwised:
             if stage == "fit":
-                self.datasets["train"].append(MultiPromptDataset(data, self.tokenizer, prompt_fields=["stereotype", "antistereotype"], split='train', max_length=64))
+                # split data into train and validate
+                data = data.train_test_split(test_size=0.1, seed=42)
+                self.datasets["train"].append(MultiPromptDataset(data["train"], self.tokenizer, prompt_fields=["stereotype", "antistereotype"], split='train', max_length=self.max_length))
+                self.datasets["valid"].append(MultiPromptDataset(data["test"], self.tokenizer, prompt_fields=["stereotype", "antistereotype"], split='valid', max_length=self.max_length))
             elif stage == "validate":
-                self.datasets["valid"].append(MultiPromptDataset(data, self.tokenizer, prompt_fields=["stereotype", "antistereotype"], split='valid', max_length=64))
+                self.datasets["valid"].append(MultiPromptDataset(data, self.tokenizer, prompt_fields=["antistereotype", "stereotype"], split='valid', max_length=self.max_length))
             elif stage == "test":
-                self.datasets["test"].append(MultiPromptDataset(data, self.tokenizer, prompt_fields=["stereotype", "antistereotype"], split='test', max_length=64))
+                self.datasets["test"].append(MultiPromptDataset(data, self.tokenizer, prompt_fields=["antistereotype", "stereotype"], split='test', max_length=self.max_length))
         else:
             if stage == "fit" or stage == "validate":
-                self.datasets["valid"].append(MultiPromptDataset(data, self.tokenizer, prompt_fields=["stereotype"], split='valid', max_length=64))
-                self.datasets["valid"].append(MultiPromptDataset(data, self.tokenizer, prompt_fields=["antistereotype"], split='valid', max_length=64))
+                self.datasets["valid"].append(MultiPromptDataset(data, self.tokenizer, prompt_fields=["stereotype"], split='valid', max_length=self.max_length))
+                self.datasets["valid"].append(MultiPromptDataset(data, self.tokenizer, prompt_fields=["antistereotype"], split='valid', max_length=self.max_length))
             elif stage == "test":
-                self.datasets["test"].append(MultiPromptDataset(data, self.tokenizer, prompt_fields=["stereotype"], split='test', max_length=64))
-                self.datasets["test"].append(MultiPromptDataset(data, self.tokenizer, prompt_fields=["antistereotype"], split='test', max_length=64))
+                self.datasets["test"].append(MultiPromptDataset(data, self.tokenizer, prompt_fields=["stereotype"], split='test', max_length=self.max_length))
+                self.datasets["test"].append(MultiPromptDataset(data, self.tokenizer, prompt_fields=["antistereotype"], split='test', max_length=self.max_length))
 
 if __name__ == "__main__":
     # PYTHONPATH=$(pwd) python datamodules/crews_pairs.py
@@ -165,7 +167,7 @@ if __name__ == "__main__":
             self.cfg = {
                 "training": {"per_device_batch_size": 4},
                 "cache_dir": Path(__file__).parent.parent / ".cache",
-                "task": {"data_path": "data/crows_pair.json"},
+                "task": {"data_path": "data/crows_pairs.json"},
                 "data": {"num_workers": 4},
                 "method": {"name": "dpo"},
             }
