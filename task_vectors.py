@@ -24,8 +24,29 @@ class TaskVector():
                     #     continue
                     if pretrained_state_dict[key].dtype in [torch.int64, torch.uint8]:
                         continue
+                    elif "lora_A" in key or "lora_B" in key:
+                        continue
                     self.vector[key] = finetuned_state_dict[key] - pretrained_state_dict[key]
-    
+                
+                pair = []
+                for key in pretrained_state_dict:
+                    if "lora_A" in key:
+                        pair.append(key)
+                        continue
+                    elif "lora_B" in key:
+                        pair.append(key)
+                        assert pair[0].replace("lora_A", "lora_B") == pair[1]
+
+                        lora_vector = (finetuned_state_dict[pair[1]] @ finetuned_state_dict[pair[0]]) - (pretrained_state_dict[pair[1]] @ pretrained_state_dict[pair[0]])
+                        prefix = pair[0].split("lora_A")[0].strip(".")
+                        for key in self.vector:
+                            if key.startswith(prefix) and key.endswith("weight"):
+                                self.vector[key] += lora_vector
+                                break
+                        else:
+                            raise ValueError(f"Could not find the corresponding key for the lora vector: {prefix}")
+                        pair = []
+
     def __add__(self, other):
         """Add two task vectors together."""
         if other is None or isinstance(other, int):
@@ -127,30 +148,12 @@ class TaskVector():
                 new_vector[key] = new_vector[key].view(self.vector[key].shape)
         return TaskVector(vector=new_vector)
 
-    def normalize(self, use_lora=False):
-        if not use_lora:
-            with torch.no_grad():
-                for key in self.vector:
-                    if torch.all(self.vector[key] == 0):
-                        continue
-                    self.vector[key] /= torch.norm(self.vector[key])
-        if use_lora:
-            with torch.no_grad():
-                pair = []
-                for key in self.vector:
-                    if torch.all(self.vector[key] == 0):
-                        continue
-                    if "lora_A" in key:
-                        pair.append(key)
-                        continue
-                    elif "lora_B" in key:
-                        pair.append(key)
-                        assert pair[0].replace("lora_A", "lora_B") == pair[1]
-                        w = self.vector[pair[1]] @ self.vector[pair[0]]
-                        self.vector[pair[1]] /= torch.norm(w)
-                        pair = []
-                    else:
-                        ...
+    def normalize(self):
+        with torch.no_grad():
+            for key in self.vector:
+                if torch.all(self.vector[key] == 0):
+                    continue
+                self.vector[key] /= torch.norm(self.vector[key])
         return self
         
 
@@ -160,12 +163,12 @@ def create_model_from_ckpt(cfg, pretraind_model, forget_ckpt, retain_ckpt, forge
     if forget_ckpt:
         forget_tv = TaskVector(pretraind_model, forget_ckpt)
         if cfg.method.normalize:
-            forget_tv = forget_tv.normalize(use_lora=cfg.training.use_lora)
+            forget_tv = forget_tv.normalize()
         model_name += f"-fs{cfg.method.forget_scaling_coef}_{forget_ckpt_metrics}"    
     if retain_ckpt:
         retain_tv = TaskVector(pretraind_model, retain_ckpt)
         if cfg.method.normalize:
-            retain_tv = retain_tv.normalize(use_lora=cfg.training.use_lora)
+            retain_tv = retain_tv.normalize()
         model_name += f"-rs{cfg.method.retain_scaling_coef}_{retain_ckpt_metrics}"
     if forget_ckpt and retain_ckpt and cfg.method.make_perpendicular:
         forget_tv = forget_tv.make_perpendicular(retain_tv)
