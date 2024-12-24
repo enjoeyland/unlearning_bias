@@ -6,7 +6,12 @@ defaults:
   - /model: opt-1.3b
 
 training:  
-  use_lora: true
+  # use_lora: true
+  use_lora: false
+  world_size: 1
+  per_device_batch_size: 32
+  gradient_accumulation_steps: 1
+  dp_strategy: ddp  # options: [auto, ddp, ddp_find_unused_parameters_true, deepspeed, deepspeed_stage_1, deepspeed_stage_2, deepspeed_stage_2_offload, deepspeed_stage_3, deepspeed_stage_3_offload]
 
 callbacks:
   eval_steps: 1.0

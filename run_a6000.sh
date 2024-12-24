@@ -1,6 +1,7 @@
 #!/bin/bash
 #SBATCH -J UnlearningBias
-#SBATCH --gres=gpu:2
+#SBATCH -p suma_a6000
+#SBATCH --gres=gpu:1
 #SBATCH --output=outputs/output_%j.log
 #SBATCH --time 6:00:00
 date=`date +%Y-%m-%d`
@@ -8,12 +9,12 @@ time=`date +%H-%M-%S`
 
 gpustat
 
-
 python -u run.py \
     -m \
     method.fit_target=forget \
     logging.progress_bar=tqdm \
     logging.progress_bar_refresh_rate=40 \
+    # model.learning_rate=3e-5\
 
     # training.use_lora=false \
     # training.dp_strategy=deepspeed_stage_3 \
@@ -47,7 +48,6 @@ python -u run.py \
 
     # task=crows_pairs \
     # model=opt-6.7b \
-
 
 mkdir ./outputs/${date}
 mkdir ./outputs/${date}/${time}
