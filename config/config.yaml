@@ -49,6 +49,7 @@ callbacks:
   early_stop_step: null
 
 output_dir: .checkpoints/${model.name}/${task.name}/${method.name}/${method.run_name}
+load_from_checkpoint: null
 
 do_train: false
 do_eval: false

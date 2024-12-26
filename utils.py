@@ -217,3 +217,7 @@ def select_ckpts(cfg):
         retain_ckpt_metrics = retain_ckpt.split("/")[-1].split(".ckpt")[0].split("_")[-1]
     
     return forget_ckpt, retain_ckpt, forget_ckpt_metrics, retain_ckpt_metrics
+
+def get_absolute_path(path):
+    from pathlib import Path
+    return str((Path(__file__).parent / path).resolve())

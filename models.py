@@ -6,11 +6,25 @@ from transformers import AutoTokenizer, AutoModelForSequenceClassification, Auto
 from transformers.utils import logging
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 
-from datamodules import StereoSetDataModule, CivilCommentsDataModule, CrowsPairsDataModule, CombinedDataModule, AdultDataModule, CompasDataModule
-from utils import installed_cuda_version
+from datamodules import DataModuleFactory
+from utils import installed_cuda_version, get_absolute_path
 
 logging.get_logger("transformers").setLevel(logging.ERROR)
 
+class ModelFactory:
+    def __init__(self):
+        self._model_builders = {
+            'dpo': DpoModel,
+            'grad_ascent': GradAscentModel,
+        }
+
+    def create_model(self, cfg):
+        method_name = cfg.method.name
+        if method_name in self._model_builders:
+            model_builder = self._model_builders[method_name]
+        else:
+            model_builder = BasicModel
+        return model_builder(cfg)
 
 class BasicModel(LightningModule):
     def __init__(self, hparams):
@@ -19,30 +33,9 @@ class BasicModel(LightningModule):
         
         self.tokenizer = AutoTokenizer.from_pretrained(self.hparams.model.hf, cache_dir=self.hparams.cache_dir, clean_up_tokenization_spaces=True)
 
-        self.datamodule = self._get_datamodule(self.hparams.task.name)
+        self.datamodule = DataModuleFactory(self, self.hparams, self.tokenizer).create_datamodule(self.hparams.task.name)
         self.model = None
         self.metrics = self.datamodule.metrics
-
-    def _get_datamodule(self, task):
-        if "combined" in task:
-            datamodules = []
-            for target, data_path in zip(self.hparams.task.targets, self.hparams.task.data_paths):
-                self.hparams.task.data_path = data_path
-                datamodules.append(self._get_datamodule(target))
-            return CombinedDataModule(self, self.hparams, self.tokenizer, datamodules)
-
-        if task == "stereoset":
-            return StereoSetDataModule(self, self.hparams, self.tokenizer)
-        elif task == "civil_comments":
-            return CivilCommentsDataModule(self, self.hparams, self.tokenizer)
-        elif task == "crows_pairs":
-            return CrowsPairsDataModule(self, self.hparams, self.tokenizer)
-        elif task == "adult":
-            return AdultDataModule(self, self.hparams, self.tokenizer)
-        elif task == "compas":
-            return CompasDataModule(self, self.hparams, self.tokenizer)
-        else:
-            raise NotImplementedError(f"Task {task} not implemented.")
 
     def _get_target_modules(self):
         if "opt" in self.hparams.model.name:
@@ -56,6 +49,12 @@ class BasicModel(LightningModule):
         if self.model is not None:
             return
         
+        if self.hparams.load_from_checkpoint is not None:
+            self.model = self.load_from_checkpoint(get_absolute_path(self.hparams.load_from_checkpoint))
+            if self.hparams.do_train:
+                self.model.train()
+            return
+
         model_kwargs = {}
 
         if "deepspeed" in self.hparams.training.dp_strategy:
@@ -105,17 +104,23 @@ class BasicModel(LightningModule):
 
         if self.hparams.do_train:
             model.train()
+        else:
+            model.eval()
 
         self.model = model
 
     def forward(self, input_ids, attention_mask=None, labels=None, **inputs):
         return self.model(input_ids, attention_mask=attention_mask, labels=labels)
 
+    def _get_loss_and_metrics(self, outputs, batch, batch_idx):
+        loss = outputs.loss
+        metrics = {"train/loss": loss}
+        return loss, metrics
+
     def training_step(self, batch, batch_idx):
         outputs = self(**batch)
-        loss = outputs.loss
+        loss, metrics = self._get_loss_and_metrics(outputs, batch, batch_idx)
 
-        metrics = {"train/loss": loss}
         metrics.update(self.datamodule.on_step("train", outputs, batch, batch_idx))
         self.log_dict(metrics, on_step=True, prog_bar=True, logger=True, batch_size=batch["input_ids"].size(0), sync_dist=True)
         return loss
@@ -213,9 +218,6 @@ class DpoModel(BasicModel):
         self.model = None
         super().configure_model()
     
-    def forward(self, input_ids, attention_mask, labels=None, **inputs):
-        return self.model(input_ids, attention_mask=attention_mask, labels=labels)
-
     def _get_logps(self, outputs, batch):
         all_logps = get_batch_logps(outputs.logits, batch['labels'], average_log_prob=False)
         chosen_logps = all_logps[:batch['labels'].size(0)//2]

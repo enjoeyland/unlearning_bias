@@ -4,6 +4,8 @@ import pandas as pd
 from lightning.pytorch.callbacks import Callback, ModelCheckpoint
 from lightning.pytorch.callbacks.early_stopping import EarlyStopping
 
+from datamodules import DataModuleFactory
+
 class Callbacks:
     def __init__(self, cfg):
         self.output_dir = cfg.output_dir
@@ -16,44 +18,7 @@ class Callbacks:
         else:
             self.every_n_epochs = 1
 
-        self.monitor = None
-        self.mode = "min"
-        self.filename = "best"
-
-
-        if cfg.task.name in ["stereoset", "crows_pairs"] or ("combined" in cfg.task.name and ("stereoset" in cfg.task.targets or "crows_pairs" in cfg.task.targets)):
-            if cfg.method.name == "dpo":
-                ...
-            elif cfg.method.fit_target == "forget":
-                self.monitor = "valid/bias_score"
-                self.mode = "max"
-                self.filename = "ppl={valid/ppl/dataloader_idx_0:.2f}-bias_score={valid/bias_score:.4f}"
-        
-        elif cfg.task.name == "adult" or cfg.task.name == "compas":
-            if cfg.method.name == "grad_ascent":
-                self.monitor = "valid/equal_opportunity"
-                self.mode = "min"
-            else:
-                self.monitor = "valid/accuracy"
-                self.mode = "max"
-            self.filename = "acc={valid/accuracy:.3f}-eo={valid/equal_opportunity:.4f}-spd={valid/spd:.4f}"
-        else:
-            print(f"Task {cfg.task.name} is not setup for callbacks.")  
-
-
-        if cfg.method.name == "finetune":
-            if cfg.method.fit_target == "forget":
-                self.filename = f"forget_{self.filename}"
-            elif cfg.method.fit_target == "retain":
-                if hasattr(cfg.data, "retain_multiplier") and not cfg.data.retain_multiplier:
-                    self.filename = f"retain{cfg.data.retain_multiplier}_{self.filename}"
-                else:
-                    self.filename = f"retain_{self.filename}"
-        elif cfg.method.name == "grad_ascent":
-            if cfg.method.fit_target == "without_retain":
-                self.filename = f"without_retain_{self.filename}"
-            elif cfg.method.fit_target == "with_retain":
-                self.filename = f"with_retain_{self.filename}"
+        self.monitor, self.mode, self.filename = DataModuleFactory.configure_callbacks_monitor(cfg)
 
     def get_checkpoint_callback(self):
         return ModelCheckpoint(

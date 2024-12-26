@@ -13,7 +13,7 @@ from lightning.pytorch.accelerators import find_usable_cuda_devices
 from lightning.pytorch.callbacks import TQDMProgressBar, RichProgressBar
 print("Done")
 
-from models import BasicModel, DpoModel, GradAscentModel
+from models import ModelFactory
 from callbacks import Callbacks
 from utils import deepspeed_weights_only, update_deepspeed_initalize, select_ckpts
 from task_vectors import create_model_from_ckpt
@@ -22,7 +22,7 @@ OmegaConf.register_new_resolver("mul", lambda *args: reduce(lambda x, y: x * y, 
 
 
 @hydra.main(version_base=None, config_path="config", config_name="config")
-def main(cfg, model_path=None):
+def main(cfg):
     os.makedirs(cfg.output_dir, exist_ok=True)
 
     seed_everything(cfg.training.seed, workers=True)
@@ -41,17 +41,7 @@ def main(cfg, model_path=None):
             name=cfg.logging.name,
         )
 
-    if cfg.method.name == "dpo":
-        model_cls = DpoModel
-    elif cfg.method.name == "grad_ascent":
-        model_cls = GradAscentModel
-    else:
-        model_cls = BasicModel
-
-    if model_path:
-        model = model_cls.load_from_checkpoint(model_path, hparams=cfg)
-    else:
-        model = model_cls(cfg)
+    model = ModelFactory().create_model(cfg)
     
     if cfg.method.name == "negtaskvector" or cfg.method.name == "forget_finetune":
         assert not cfg.do_train, "Negtaskvector method is not supported for training"
