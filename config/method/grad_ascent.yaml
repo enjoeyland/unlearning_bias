@@ -1,0 +1,19 @@
+# @package _global_
+method:
+  name : grad_ascent
+  fit_target: with_retain  # options: [without_retain, with_retain]
+  run_name: BS${training.train_batch_size}_LR${training.learning_rate}_S${training.seed}_${method.fit_target}
+
+training:
+  reload_dataloaders_every_epoch: true
+  limit_train_batches: 0.005
+  epochs: 200
+
+callbacks:
+  eval_steps: 1.0
+  max_tolerance: 3
+
+# do_train: true
+# do_eval: true
+
+# python run.py task=adult_filter_grad_ascent method=grad_ascent

@@ -3,10 +3,14 @@ defaults:
   - _self_
   - /task: adult_filter
   - /method: finetune  # options: [original, negtaskvector_tabular, finetune]
-  - /model: opt-1.3b
+  - /model: opt-1.3b_without_lora
 
 training:  
-  use_lora: true
+  # use_lora: true
+  use_lora: false
+  world_size: 1
+  per_device_batch_size: 32
+  gradient_accumulation_steps: 1
 
 callbacks:
   eval_steps: 1.0
@@ -20,4 +24,4 @@ do_train: true
 do_eval: false
 do_test: false
 
-# python run.py -m method.fit_target=retain,forget
+# python run.py -m experiment=tabular_without_lora method.fit_target=retain,forget

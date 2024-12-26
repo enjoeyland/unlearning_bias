@@ -11,6 +11,7 @@ gpustat
 
 python -u run.py \
     -m \
+    experiment=tabular_without_lora \
     method.fit_target=forget \
     logging.progress_bar=tqdm \
     logging.progress_bar_refresh_rate=40 \

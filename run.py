@@ -13,7 +13,7 @@ from lightning.pytorch.accelerators import find_usable_cuda_devices
 from lightning.pytorch.callbacks import TQDMProgressBar, RichProgressBar
 print("Done")
 
-from models import BasicModel, DpoModel
+from models import BasicModel, DpoModel, GradAscentModel
 from callbacks import Callbacks
 from utils import deepspeed_weights_only, update_deepspeed_initalize, select_ckpts
 from task_vectors import create_model_from_ckpt
@@ -43,6 +43,8 @@ def main(cfg, model_path=None):
 
     if cfg.method.name == "dpo":
         model_cls = DpoModel
+    elif cfg.method.name == "grad_ascent":
+        model_cls = GradAscentModel
     else:
         model_cls = BasicModel
 
@@ -85,7 +87,9 @@ def main(cfg, model_path=None):
         log_every_n_steps=cfg.logging.logging_steps,
         callbacks=callbacks,
         default_root_dir=cfg.output_dir,
-        reload_dataloaders_every_n_epochs=0, # for unlearning
+        reload_dataloaders_every_n_epochs=int(cfg.training.reload_dataloaders_every_epoch),
+        limit_train_batches=cfg.training.limit_train_batches,
+        check_val_every_n_epoch= int(2/cfg.training.limit_train_batches/20) if cfg.training.reload_dataloaders_every_epoch else 1,
         num_sanity_val_steps=0,
     )
 

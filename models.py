@@ -29,18 +29,18 @@ class BasicModel(LightningModule):
             for target, data_path in zip(self.hparams.task.targets, self.hparams.task.data_paths):
                 self.hparams.task.data_path = data_path
                 datamodules.append(self._get_datamodule(target))
-            return CombinedDataModule(self.hparams, self.tokenizer, datamodules)
+            return CombinedDataModule(self, self.hparams, self.tokenizer, datamodules)
 
         if task == "stereoset":
-            return StereoSetDataModule(self.hparams, self.tokenizer)
+            return StereoSetDataModule(self, self.hparams, self.tokenizer)
         elif task == "civil_comments":
-            return CivilCommentsDataModule(self.hparams, self.tokenizer)
+            return CivilCommentsDataModule(self, self.hparams, self.tokenizer)
         elif task == "crows_pairs":
-            return CrowsPairsDataModule(self.hparams, self.tokenizer)
+            return CrowsPairsDataModule(self, self.hparams, self.tokenizer)
         elif task == "adult":
-            return AdultDataModule(self.hparams, self.tokenizer)
+            return AdultDataModule(self, self.hparams, self.tokenizer)
         elif task == "compas":
-            return CompasDataModule(self.hparams, self.tokenizer)
+            return CompasDataModule(self, self.hparams, self.tokenizer)
         else:
             raise NotImplementedError(f"Task {task} not implemented.")
 
@@ -254,3 +254,11 @@ class DpoModel(BasicModel):
     
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         pass
+
+class GradAscentModel(BasicModel):
+    def training_step(self, batch, batch_idx):
+        loss = super().training_step(batch, batch_idx)
+        if self.current_epoch % 2 == 0:
+            return -loss
+        else:
+            return loss

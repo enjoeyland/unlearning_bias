@@ -1,0 +1,4 @@
+name: opt-1.3b
+hf: facebook/opt-1.3b
+type: decoder
+learning_rate: 5e-5 # without lora

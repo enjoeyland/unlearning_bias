@@ -1,0 +1,18 @@
+# @package _global_
+task:
+  name: adult
+  task_type: SEQ_CLS # options: [CAUSAL_LM, SEQ_CLS]
+  data_path: 
+    train: 
+      - data/adult_train_forget.json
+      - data/adult_train_retain.json
+    valid: data/adult_valid_retain.json
+  remove_features: []
+  shuffle_features: false
+
+# training:
+#   world_size: 2
+#   per_device_batch_size: 16
+#   gradient_accumulation_steps: 1
+
+#  python run.py task=adult_filter

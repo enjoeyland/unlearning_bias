@@ -60,11 +60,9 @@ class StereoSetDataModule(BaseDataModule):
     UNRELATED = "unrelated"
     label_name = ["anti-stereotype", "stereotype", "unrelated"]
     
-    def __init__(self, cfg, tokenizer):
-        super().__init__()
+    def __init__(self, module, cfg, tokenizer):
+        super().__init__(module, cfg)
         self.tokenizer = tokenizer
-        self.batch_size = cfg.training.per_device_batch_size
-        self.num_workers = cfg.data.num_workers
         self.cache_dir = cfg.cache_dir
         self.data_path = Path(__file__).parent.parent / cfg.task.data_path
         self.metrics["_train"].update({

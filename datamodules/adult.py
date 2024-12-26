@@ -6,6 +6,7 @@ from pathlib import Path
 from dataclasses import dataclass, asdict
 from torch.utils.data import Dataset, DataLoader
 from datasets import load_dataset
+from collections import defaultdict
 
 from datamodules import BaseDataModule
 from metrics.classification import BinaryAccuracy, EqulityOfOpportunity, StatisticalParityDifference
@@ -75,16 +76,24 @@ class AdultDataset(Dataset):
         }
 
 class AdultDataModule(BaseDataModule):
-    def __init__(self, cfg, tokenizer):
-        super().__init__()
+    def __init__(self, module, cfg, tokenizer):
+        super().__init__(module, cfg)
         self.tokenizer = tokenizer
         self.batch_size = cfg.training.per_device_batch_size
         self.num_workers = cfg.data.num_workers
         self.cache_dir = cfg.cache_dir
-        self.data_path = {}
-        for split in ["train", "valid"]:
-            self.data_path[split] = Path(__file__).parent.parent / cfg.task.data_path[split]
+
+        self.data_paths = defaultdict(list)
+        for split in cfg.task.data_path:
+            if isinstance(cfg.task.data_path[split], str):
+                self.data_paths[split].append(str((Path(__file__).parent.parent / cfg.task.data_path[split]).resolve()))
+            else:
+                for path in cfg.task.data_path[split]:
+                    self.data_paths[split].append(str((Path(__file__).parent.parent / path).resolve()))
         self.fit_target = cfg.method.fit_target
+        if self.fit_target == "without_retain":
+            self.data_paths["train"] = list(filter(lambda x: "retain" not in x, self.data_paths["train"]))
+
         self.remove_features = cfg.task.remove_features
         self.shuffle_features = cfg.task.shuffle_features
         
@@ -101,7 +110,10 @@ class AdultDataModule(BaseDataModule):
         })
 
     def prepare_data(self) -> None:
-        if self.data_path["train"].exists() and self.data_path["valid"].exists():
+        for split in self.data_paths:
+            if not all([Path(path).exists() for path in self.data_paths[split]]):
+                break
+        else:
             return
 
         print("Preparing Adult dataset")
@@ -110,9 +122,8 @@ class AdultDataModule(BaseDataModule):
         dataset = load_dataset("mstz/adult", "income", cache_dir=self.cache_dir)
         
         education_dict = {item['encoded_value']: item['original_value'] for item in encode_dataset}
-   
         for split in dataset:
-            data = []
+            data = {"forget": [], "retain": []}
             for item_data in dataset[split]:
                 entry = AdultData(
                     age=item_data["age"],
@@ -130,36 +141,36 @@ class AdultDataModule(BaseDataModule):
                     workclass=item_data["workclass"],
                     over_threshold=item_data["over_threshold"],
                 )
-                if self.fit_target == "forget":
-                    if (entry.is_male and entry.over_threshold) or (not entry.is_male and not entry.over_threshold):
-                        data.append(asdict(entry))
+                if (entry.is_male and entry.over_threshold) or (not entry.is_male and not entry.over_threshold):
+                    data["forget"].append(asdict(entry))
                 else:
-                    data.append(asdict(entry))
+                    data["retain"].append(asdict(entry))
             
-            split = "train" if split == "train" else "valid"        
-            with open(self.data_path[split], "w") as f:
-                json.dump(data, f, indent=2)
+            split = "train" if split == "train" else "valid"
+            for target in data:
+                for path in self.data_paths[split]:
+                    if target in path:
+                        break
+                with open(path, "w") as f:
+                    json.dump(data[target], f, indent=2)
 
     def setup(self, stage: str):
-        data = load_dataset(
-            "json", 
-            data_files={
-                "train": str(self.data_path["train"].resolve()),
-                "valid": str(self.data_path["valid"].resolve())
-            },
-            cache_dir=self.cache_dir,
-        )
-        
+        data = defaultdict(list)
+        for split in self.data_paths:
+            for path in self.data_paths[split]:
+                data[split].append(load_dataset("json", data_files=path, cache_dir=self.cache_dir)['train'])
+     
         remove_features = []
         if self.fit_target == "forget":
             remove_features = self.remove_features
 
         if stage == "fit":
-            self.datasets["train"].append(AdultDataset(data["train"], self.tokenizer, split='train', remove_features=remove_features, shuffle_features=self.shuffle_features))
-            self.datasets["valid"].append(AdultDataset(data["valid"], self.tokenizer, split='valid', remove_features=remove_features, shuffle_features=self.shuffle_features))
-        
+            for split in data:
+                for item in data[split]:
+                    self.datasets[split].append(AdultDataset(item, self.tokenizer, split=split, remove_features=remove_features, shuffle_features=self.shuffle_features))
         elif stage == "validate":
-            self.datasets["valid"].append(AdultDataset(data["valid"], self.tokenizer, split='valid', remove_features=remove_features, shuffle_features=self.shuffle_features))
+            for item in data["valid"]:
+                self.datasets["valid"].append(AdultDataset(item, self.tokenizer, split='valid', remove_features=remove_features, shuffle_features=self.shuffle_features))
 
 
 if __name__ == "__main__":
