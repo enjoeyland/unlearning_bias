@@ -256,11 +256,20 @@ class DpoModel(BasicModel):
     
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         pass
-
+ 
+# TODO: reload_dataloaders_every_epoch: false 일때 처리
 class GradAscentModel(BasicModel):
+    def __init__(self, hparams):
+        super().__init__(hparams)
+        self.retain_forget_ratio = self.hparams.method.retain_forget_ratio
+        
+        assert len(self.datamodule.datasets["train"]) == 2
+        train_dataset = self.datamodule.datasets["train"]
+        self.datamodule.datasets["train"] = [train_dataset[0]] + [train_dataset[1]] * self.retain_forget_ratio
+
     def training_step(self, batch, batch_idx):
         loss = super().training_step(batch, batch_idx)
-        if self.current_epoch % 2 == 0:
+        if self.current_epoch % (self.retain_forget_ratio + 1) == 0:
             return -loss
         else:
             return loss

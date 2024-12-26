@@ -3,17 +3,20 @@ method:
   name : grad_ascent
   fit_target: with_retain  # options: [without_retain, with_retain]
   run_name: BS${training.train_batch_size}_LR${training.learning_rate}_S${training.seed}_${method.fit_target}
+  retain_forget_ratio: 5 # forget: 1, retain: n
 
 training:
   reload_dataloaders_every_epoch: true
   limit_train_batches: 0.005
-  epochs: 200
+  epochs: ${mul:20, ${method.retain_forget_ratio}
 
 callbacks:
   eval_steps: 1.0
   max_tolerance: 3
 
+load_from_checkpoint: null # retained checkpoint
+
 # do_train: true
 # do_eval: true
 
-# python run.py task=adult_filter_grad_ascent method=grad_ascent
+# python run.py task=adult_filter_grad_ascent method=grad_ascent load_from_checkpoint=.checkpoints/opt-1.3b/adult/finetune/BS32_LR0.0002_S42_retain/retain_acc=0.875-eo=0.5634-spd=0.2066.ckpt
