@@ -9,6 +9,7 @@ from transformers import PreTrainedTokenizer
 
 from datamodules import BaseDataModule
 from metrics.text import Perplexity
+from utils import get_absolute_path
 
 @dataclass
 class StereoSetData:
@@ -64,7 +65,7 @@ class StereoSetDataModule(BaseDataModule):
         super().__init__(module, cfg)
         self.tokenizer = tokenizer
         self.cache_dir = cfg.cache_dir
-        self.data_path = Path(__file__).parent.parent / cfg.task.data_path
+        self.data_path = get_absolute_path(cfg.task.data_path)
         self.metrics["_train"].update({
             "ppl": Perplexity(ignore_index=-100),
         })
@@ -119,7 +120,7 @@ if __name__ == "__main__":
             """테스트 전에 호출되어 테스트 환경을 설정"""
             self.cfg = {
                 "training": {"per_device_batch_size": 4},
-                "cache_dir": Path(__file__).parent.parent / ".cache",
+                "cache_dir": get_absolute_path(".cache"),
                 "task": {"data_path": "data/stereoset.json"},
                 "data": {"num_workers": 4},
             }

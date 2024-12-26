@@ -10,6 +10,7 @@ from collections import defaultdict
 
 from datamodules import BaseDataModule
 from metrics.classification import BinaryAccuracy, EqulityOfOpportunity, StatisticalParityDifference
+from utils import get_absolute_path
 
 @dataclass
 class AdultData:
@@ -75,21 +76,20 @@ class AdultDataset(Dataset):
             'is_male': torch.tensor(item['is_male'], dtype=torch.bool),
         }
 
+# TODO: 현재 gradient ascent는 Adult에서만 됌. 다른 데이터셋에서도 사용할 수 있도록 수정 필요
 class AdultDataModule(BaseDataModule):
     def __init__(self, module, cfg, tokenizer):
         super().__init__(module, cfg)
         self.tokenizer = tokenizer
-        self.batch_size = cfg.training.per_device_batch_size
-        self.num_workers = cfg.data.num_workers
         self.cache_dir = cfg.cache_dir
 
         self.data_paths = defaultdict(list)
         for split in cfg.task.data_path:
             if isinstance(cfg.task.data_path[split], str):
-                self.data_paths[split].append(str((Path(__file__).parent.parent / cfg.task.data_path[split]).resolve()))
+                self.data_paths[split].append(get_absolute_path(cfg.task.data_path[split]))
             else:
                 for path in cfg.task.data_path[split]:
-                    self.data_paths[split].append(str((Path(__file__).parent.parent / path).resolve()))
+                    self.data_paths[split].append(get_absolute_path(path))
         self.fit_target = cfg.method.fit_target
         if self.fit_target == "without_retain":
             self.data_paths["train"] = list(filter(lambda x: "retain" not in x, self.data_paths["train"]))
@@ -185,7 +185,7 @@ if __name__ == "__main__":
             """테스트 전에 호출되어 테스트 환경을 설정"""
             self.cfg = {
                 "training": {"per_device_batch_size": 4},
-                "cache_dir": Path(__file__).parent.parent / ".cache",
+                "cache_dir": get_absolute_path(".cache"),
                 "task": {"data_path": {"train": "data/adult_train.json", "valid": "data/adult_valid.json"}},
                 "data": {"num_workers": 4},
             }

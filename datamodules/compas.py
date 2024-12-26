@@ -9,6 +9,7 @@ from datasets import load_dataset
 
 from datamodules import BaseDataModule
 from metrics.classification import BinaryAccuracy, EqulityOfOpportunity, StatisticalParityDifference
+from utils import get_absolute_path
 
 @dataclass
 class CompasData:
@@ -82,7 +83,7 @@ class CompasDataModule(BaseDataModule):
         self.cache_dir = cfg.cache_dir
         self.data_path = {}
         for split in ["train", "valid"]:
-            self.data_path[split] = Path(__file__).parent.parent / cfg.task.data_path[split]
+            self.data_path[split] = get_absolute_path(cfg.task.data_path[split])
         self.fit_target = cfg.method.fit_target
         self.remove_features = cfg.task.remove_features
         self.shuffle_features = cfg.task.shuffle_features
@@ -175,7 +176,7 @@ if __name__ == "__main__":
                     "per_device_batch_size": 4,
                     "seed": 42,
                 },
-                "cache_dir": Path(__file__).parent.parent / ".cache",
+                "cache_dir": get_absolute_path(".cache"),
                 "task": {
                     "data_path": {
                         "train": "data/compas_train_retain.json",

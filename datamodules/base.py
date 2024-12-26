@@ -4,6 +4,7 @@ from lightning import LightningDataModule
 from torch.utils.data import  DataLoader, ConcatDataset, Dataset
 
 from metrics.metric_base import MetricDataModule
+from utils import get_absolute_path
 
 class DatasetLoaderModule(LightningDataModule):
     def __init__(self, module, cfg):
@@ -80,7 +81,7 @@ class CombinedDataModule(BaseDataModule):
         super().__init__(module, cfg)
         self.tokenizer = tokenizer
         self.cache_dir = cfg.cache_dir
-        self.data_path = Path(__file__).parent.parent / cfg.task.data_path
+        self.data_path = get_absolute_path(cfg.task.data_path)
         self.data_modules = data_modules
         for dm in self.data_modules:
             for split, metircs in dm.metrics.items():

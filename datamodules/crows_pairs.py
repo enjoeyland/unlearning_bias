@@ -14,6 +14,7 @@ from datamodules import BaseDataModule
 from metrics.metric_base import MetricHandler
 from metrics.text import Perplexity
 from datamodules.preference import MultiPromptDataset, MultiPromptDataCollator, ConcatDataCollator
+from utils import get_absolute_path
 
 _STEREOTYPE = "stereotype"
 _ANTI_STEREOTYPE = "anti-stereotype"
@@ -81,12 +82,13 @@ class BiasScoreDerivation(Metric, MetricHandler):
         self.reset()
         return bias_score
 
+# TODO: 현재 dpo는 CrwosPair에서만 됌. 다른 데이터셋에서도 사용할 수 있도록 수정 필요
 class CrowsPairsDataModule(BaseDataModule):
     def __init__(self, module, cfg, tokenizer):
         super().__init__(module, cfg)
         self.tokenizer = tokenizer
         self.cache_dir = cfg.cache_dir
-        self.data_path = Path(__file__).parent.parent / cfg.task.data_path
+        self.data_path = get_absolute_path(cfg.task.data_path)
         self.is_pairwised = cfg.method.name == "dpo"
         self.max_length = 64
 
@@ -164,7 +166,7 @@ if __name__ == "__main__":
             """테스트 전에 호출되어 테스트 환경을 설정"""
             self.cfg = {
                 "training": {"per_device_batch_size": 4},
-                "cache_dir": Path(__file__).parent.parent / ".cache",
+                "cache_dir": get_absolute_path(".cache"),
                 "task": {"data_path": "data/crows_pairs.json"},
                 "data": {"num_workers": 4},
                 "method": {"name": "dpo"},
