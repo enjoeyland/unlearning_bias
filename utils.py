@@ -165,15 +165,27 @@ def select_ckpts(cfg):
 
     def ckpt_metrics(ckpt):
         ckpt = ckpt.split("/")[-1]
-        for item in ckpt.split(".ckpt")[0].split("_")[-1].split("-"):
-            if cfg.method.metric in item:
-                return float(item.split(f"{cfg.method.metric}=")[-1])
+        if cfg.method.keywords:
+            for keyword in cfg.method.keywords:
+                if keyword in ckpt:
+                    break
+            else:
+                print(f"Keyword {keyword} not found.")
+                if cfg.method.mode == "min":
+                    return float("inf")
+                else:
+                    return float("-inf")
+
+        if cfg.method.metric in ckpt:
+            for item in ckpt.split(".ckpt")[0].split("_")[-1].split("-"):
+                if cfg.method.metric in item:
+                    return float(item.split(f"{cfg.method.metric}=")[-1])
         else:
             print(f"Metric {cfg.method.metric} not found.")
-        if cfg.method.mode == "min":
-            return float("inf")
-        else:
-            return float("-inf")
+            if cfg.method.mode == "min":
+                return float("inf")
+            else:
+                return float("-inf")
         
     forget_ckpt = None
     forget_ckpt_metrics = ""

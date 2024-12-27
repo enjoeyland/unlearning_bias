@@ -159,10 +159,10 @@ class AdultDataModule(BaseDataModule):
         for split in self.data_paths:
             for path in self.data_paths[split]:
                 data[split].append(load_dataset("json", data_files=path, cache_dir=self.cache_dir)['train'])
-     
-        remove_features = []
-        if self.fit_target == "forget":
-            remove_features = self.remove_features
+        
+        # remove_features = []
+        # if self.fit_target == "forget":
+        remove_features = self.remove_features
 
         if stage == "fit":
             for split in data:
@@ -172,6 +172,25 @@ class AdultDataModule(BaseDataModule):
             for item in data["valid"]:
                 self.datasets["valid"].append(AdultDataset(item, self.tokenizer, split='valid', remove_features=remove_features, shuffle_features=self.shuffle_features))
 
+    def regularization_loss_and_metric(self, outputs, batch, batch_idx):
+        prob = torch.softmax(outputs.logits, dim=1)[:, 1]  # P(ŷ=1)
+        
+        # 민감한 속성 그룹 분리
+        group_0 = (batch["is_male"] == False)
+        group_1 = (batch["is_male"] == True)
+
+        # P(ŷ=1 | Y=1, A=0)
+        group_0_y1 = (batch["labels"][group_0] == 1)
+        p_y1_a0 = prob[group_0][group_0_y1].mean() if group_0_y1.sum() > 0 else torch.tensor(0.0).to(prob.device)
+
+        # P(ŷ=1 | Y=1, A=1)
+        group_1_y1 = (batch["labels"][group_1] == 1)
+        p_y1_a1 = prob[group_1][group_1_y1].mean() if group_1_y1.sum() > 0 else torch.tensor(0.0).to(prob.device)
+
+        # Equal Opportunity Difference Penalty
+        eo_penalty = torch.abs(p_y1_a0 - p_y1_a1)
+
+        return eo_penalty, {"train/eod_loss": eo_penalty}
 
 if __name__ == "__main__":
     # PYTHONPATH=$(pwd) python datamodules/adult.py

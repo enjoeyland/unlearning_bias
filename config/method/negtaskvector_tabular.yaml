@@ -8,6 +8,7 @@ method:
   load_dir:
     forget: .checkpoints/${model.name}/${task.name}/finetune/${method.run_name}_forget
     retain: .checkpoints/${model.name}/${task.name}/finetune/${method.run_name}_retain
+  keywords: []
   load_ckpts:
     forget: null
     retain: null
@@ -22,7 +23,8 @@ do_eval: true
 
 training:
   world_size: 1
-  per_device_batch_size: 4
-  gradient_accumulation_steps: 8
+  per_device_batch_size: 8
+  gradient_accumulation_steps: 4
 
-# python run.py -m method=negtaskvector_tabular method.retain_scaling_coef=1 method.forget_scaling_coef=0,0.2,0.4,0.6,0.8,1
+# python run.py -m method=negtaskvector_tabular method.forget_scaling_coef=0,0.2,0.4,0.6,0.8,1
+# python run.py -m method=negtaskvector_tabular method.keywords=[remove] task=adult_filter_removemethod.forget_scaling_coef=0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1

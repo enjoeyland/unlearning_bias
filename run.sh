@@ -11,9 +11,14 @@ gpustat
 
 python -u run.py \
     -m \
-    method.fit_target=forget \
     logging.progress_bar=tqdm \
     logging.progress_bar_refresh_rate=40 \
+    method=negtaskvector_tabular \
+    method.forget_scaling_coef=0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1 \
+    method.keywords=[remove]\
+    task=adult_filter_remove\
+    method.make_perpendicular=true 
+    ### negative task vector
 
     # training.use_lora=false \
     # training.dp_strategy=deepspeed_stage_3 \
@@ -23,10 +28,7 @@ python -u run.py \
 
     # training.seed=0 \
 
-    ### negative task vector
-    # method=negtaskvector_tabular \
-    # method.retain_scaling_coef=0.9 \
-    # method.forget_scaling_coef=0,0.4,0.8,1.2,1.6,2,2.4,2.8,3.2,3.6,4,4.4,4.8,5.2,5.6,6 \
+    
 
     ### shuffled not working..
     # method.load_ckpts.forget='forget_acc=1.000-eo=1.0000-spd=1.0000-v1.ckpt' \

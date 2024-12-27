@@ -1,5 +1,7 @@
+import copy
 import torch
 import deepspeed
+import torch.nn.functional as F
 
 from lightning import LightningModule
 from transformers import AutoTokenizer, AutoModelForSequenceClassification, AutoModelForCausalLM, get_linear_schedule_with_warmup, get_cosine_schedule_with_warmup, BitsAndBytesConfig
@@ -7,24 +9,28 @@ from transformers.utils import logging
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 
 from datamodules import DataModuleFactory
-from utils import installed_cuda_version, get_absolute_path
+from datamodules.base import retain_forget_ratio_hook
+from utils import installed_cuda_version, get_state_dict
 
 logging.get_logger("transformers").setLevel(logging.ERROR)
 
 class ModelFactory:
-    def __init__(self):
+    def __init__(self, cfg):
+        self.cfg = cfg
         self._model_builders = {
             'dpo': DpoModel,
             'grad_ascent': GradAscentModel,
+            'grad_ascent_kd': GradAscentKDModel,
         }
-
-    def create_model(self, cfg):
-        method_name = cfg.method.name
+    def get_model_class(self):
+        method_name = self.cfg.method.name
         if method_name in self._model_builders:
-            model_builder = self._model_builders[method_name]
-        else:
-            model_builder = BasicModel
-        return model_builder(cfg)
+            return self._model_builders[method_name]
+        return BasicModel
+    
+    def create_model(self):
+        model_builder = self.get_model_class()
+        return model_builder(self.cfg)
 
 class BasicModel(LightningModule):
     def __init__(self, hparams):
@@ -47,12 +53,6 @@ class BasicModel(LightningModule):
 
     def configure_model(self):
         if self.model is not None:
-            return
-        
-        if self.hparams.load_from_checkpoint is not None:
-            self.model = self.load_from_checkpoint(get_absolute_path(self.hparams.load_from_checkpoint))
-            if self.hparams.do_train:
-                self.model.train()
             return
 
         model_kwargs = {}
@@ -101,6 +101,11 @@ class BasicModel(LightningModule):
             if self.hparams.training.load_in_4bit or self.hparams.training.load_in_8bit:
                 model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=True) # lightning에서 안된다 그랬음
             model = get_peft_model(model, lora_config)
+
+        if self.hparams.load_from_checkpoint is not None:
+            model_state_dict = get_state_dict(model)
+            checkpoint_state_dict = get_state_dict(self.hparams.load_from_checkpoint)
+            model_state_dict.update(checkpoint_state_dict)
 
         if self.hparams.do_train:
             model.train()
@@ -224,7 +229,7 @@ class DpoModel(BasicModel):
         rejected_logps = all_logps[batch['labels'].size(0)//2:]
         return chosen_logps, rejected_logps
     
-    def training_step(self, batch, batch_idx):
+    # TODO: metric ref_outputs=ref_outputs 처리
         policy_outputs = self(batch['input_ids'], attention_mask=batch['attention_mask'], labels=batch['labels'])
         policy_chosen_logps, policy_rejected_logps = self._get_logps(policy_outputs, batch)
         
@@ -261,15 +266,57 @@ class DpoModel(BasicModel):
 class GradAscentModel(BasicModel):
     def __init__(self, hparams):
         super().__init__(hparams)
-        self.retain_forget_ratio = self.hparams.method.retain_forget_ratio
-        
-        assert len(self.datamodule.datasets["train"]) == 2
-        train_dataset = self.datamodule.datasets["train"]
-        self.datamodule.datasets["train"] = [train_dataset[0]] + [train_dataset[1]] * self.retain_forget_ratio
+        self.reload = self.hparams.training.reload_dataloaders_every_epoch
+        if self.reload:
+            self.retain_forget_ratio = self.hparams.method.retain_forget_ratio
+            retain_forget_ratio_hook(self.datamodule, self.retain_forget_ratio)
 
     def training_step(self, batch, batch_idx):
         loss = super().training_step(batch, batch_idx)
-        if self.current_epoch % (self.retain_forget_ratio + 1) == 0:
+        if not self.reload or self.current_epoch % (self.retain_forget_ratio + 1) == 0:
             return -loss
         else:
             return loss
+
+class GradAscentKDModel(BasicModel):
+    def __init__(self, hparams):
+        super().__init__(hparams)
+        self.teacher = None
+        self.temperature = self.hparams.method.temperature
+        self.alpha = self.hparams.method.alpha
+        self.reload = self.hparams.training.reload_dataloaders_every_epoch
+        if self.reload:
+            self.retain_forget_ratio = self.hparams.method.retain_forget_ratio
+            retain_forget_ratio_hook(self.datamodule, self.retain_forget_ratio)
+
+
+    def configure_model(self):
+        super().configure_model()
+        self.teacher = copy.deepcopy(self.model)
+        self.teacher.eval()
+
+    def _get_loss_and_metrics(self, outputs, batch, batch_idx):
+        if not self.reload or self.current_epoch % (self.retain_forget_ratio + 1) == 0:
+            loss = -outputs.loss
+            return loss, {"train/loss": loss}
+        else:
+            logit_s = outputs.logits
+
+            with torch.no_grad():
+                outputs_t = self.teacher(
+                    input_ids=batch["input_ids"],
+                    attention_mask=batch["attention_mask"],
+                    labels=batch["labels"]
+                )
+                logit_t = outputs_t.logits
+
+            soft_loss = F.kl_div(
+                F.log_softmax(logit_s / self.temperature, dim=-1),
+                F.softmax(logit_t / self.temperature, dim=-1),
+                reduction="batchmean",
+            ) * (self.temperature ** 2)
+
+            hard_loss = F.cross_entropy(logit_s, batch["labels"])
+            loss = self.alpha * hard_loss + (1 - self.alpha) * soft_loss
+            metric = {"train/loss": loss, "train/hard_loss": hard_loss, "train/soft_loss": soft_loss}
+            return loss, metric

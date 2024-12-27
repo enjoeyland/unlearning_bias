@@ -8,15 +8,15 @@ method:
 training:
   reload_dataloaders_every_epoch: true
   limit_train_batches: 0.005
-  epochs: ${mul:20, ${method.retain_forget_ratio}
+  epochs: 200
 
 callbacks:
   eval_steps: 1.0
-  max_tolerance: 3
+  max_tolerance: 4
 
 load_from_checkpoint: null # retained checkpoint
 
 # do_train: true
 # do_eval: true
 
-# python run.py task=adult_filter_grad_ascent method=grad_ascent load_from_checkpoint=.checkpoints/opt-1.3b/adult/finetune/BS32_LR0.0002_S42_retain/retain_acc=0.875-eo=0.5634-spd=0.2066.ckpt
+# python run.py task=adult_filter_grad_ascent method=grad_ascent load_from_checkpoint='.checkpoints/opt-1.3b/adult/finetune/BS32_LR0.0002_S42_retain/remove_retain_acc\=0.874-eo\=0.5791-spd\=0.2176.ckpt'

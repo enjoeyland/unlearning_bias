@@ -23,7 +23,7 @@ class DatasetLoaderModule(LightningDataModule):
             return None
         
         if self.reload_dataloaders_every_epoch:
-            current_idx = self._module.current_epoch  % len(self.datasets["train"])
+            current_idx = self._module.current_epoch % len(self.datasets["train"])
             dataset = self.datasets["train"][current_idx]
         else:
             dataset = ConcatDataset(self.datasets["train"])
@@ -96,3 +96,13 @@ class CombinedDataModule(BaseDataModule):
             dm.setup(stage)
             for split in dm.datasets:
                 self.datasets[split].extend(dm.datasets[split])
+
+def retain_forget_ratio_hook(datamodule, retain_forget_ratio):
+    from types import MethodType
+    def train_dataloader(self):
+        if len(self.datasets["train"]) == 2:
+            train_dataset = self.datasets["train"]
+            self.datasets["train"] = [train_dataset[0]] + [train_dataset[1]] * retain_forget_ratio
+        assert len(self.datasets["train"]) == retain_forget_ratio + 1
+        return super(datamodule.__class__, self).train_dataloader()
+    datamodule.train_dataloader = MethodType(train_dataloader, datamodule)

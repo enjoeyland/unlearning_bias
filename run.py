@@ -41,7 +41,7 @@ def main(cfg):
             name=cfg.logging.name,
         )
 
-    model = ModelFactory().create_model(cfg)
+    model = ModelFactory(cfg).create_model()
     
     if cfg.method.name == "negtaskvector" or cfg.method.name == "forget_finetune":
         assert not cfg.do_train, "Negtaskvector method is not supported for training"

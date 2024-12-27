@@ -19,9 +19,9 @@ class TaskVector():
 
                 self.vector = {}
                 for key in pretrained_state_dict:
-                    # if key not in finetuned_state_dict:
-                    #     print(f'Warning: key {key} is present in the pretrained state dict but not in the finetuned state dict')
-                    #     continue
+                    if key not in finetuned_state_dict:
+                        print(f'Warning: key {key} is present in the pretrained state dict but not in the finetuned state dict')
+                        # continue
                     if pretrained_state_dict[key].dtype in [torch.int64, torch.uint8]:
                         continue
                     elif "lora_A" in key or "lora_B" in key:
@@ -178,6 +178,14 @@ def create_model_from_ckpt(cfg, pretraind_model, forget_ckpt, retain_ckpt, forge
     if retain_ckpt:
         model += cfg.method.retain_scaling_coef * retain_tv
 
+    # TODO: 뭐가 다르지? 그래도 안돼네...    
+    # model_state_dict = get_state_dict(model)
+    # retain_ckpt_state_dict = get_state_dict(retain_ckpt)
+    # model_state_dict["model.base_model.model.score.original_module.weight"] = retain_ckpt_state_dict["model.base_model.model.score.original_module.weight"]
+    # model_state_dict["model.base_model.model.score.modules_to_save.default.weight"] = retain_ckpt_state_dict["model.base_model.model.score.modules_to_save.default.weight"]
+
+    # print(f"Equivalence of the model: {eq_model(model, retain_ckpt)}, forget_coefficient: {cfg.method.forget_scaling_coef}, retain_coefficient: {cfg.method.retain_scaling_coef}")
+    # exit()
     if cfg.method.save_model:
         import os
         model_path = f"{cfg.output_dir}/{model_name}.ckpt"
@@ -185,6 +193,65 @@ def create_model_from_ckpt(cfg, pretraind_model, forget_ckpt, retain_ckpt, forge
             import torch
             torch.save(model, model_path)
     return model
+
+def eq_model(no_lora_model, lora_model):
+    no_lora_model_state_dict = get_state_dict(no_lora_model)
+    lora_state_dict = get_state_dict(lora_model)
+    eq = True
+    triple = []
+    for key in no_lora_model_state_dict:
+        
+        if key not in lora_state_dict:
+            print(f"Key {key} is present in model1 but not in model2.")
+            eq = False
+            continue
+        if "base_layer.weight" in key:
+            triple.append(key)
+        elif "lora_A" in key:
+            triple.append(key)
+        elif "lora_B" in key:
+            triple.append(key)
+            assert triple[0].replace("base_layer.weight", "lora_B.default.weight") == triple[2]
+            assert triple[1].replace("lora_A", "lora_B") == triple[2]
+            a = no_lora_model_state_dict[triple[0]]
+            b = lora_state_dict[triple[2]] @ lora_state_dict[triple[1]] + lora_state_dict[triple[0]]
+            if torch.all(a == b):
+                continue
+            else:
+                print(f"Key {key} is not equal in model1 and model2.")
+                eq = False 
+            triple = []
+        else:
+            if torch.all(no_lora_model_state_dict[key] == lora_state_dict[key]):
+                continue
+            else:
+                print(f"Key {key} is not equal in model1 and model2.")
+                
+                diff = no_lora_model_state_dict[key] != lora_state_dict[key]
+            
+                # 차이의 인덱스와 값 출력
+                diff_indices = diff.nonzero(as_tuple=True)  # 서로 다른 값의 인덱스
+                print(f"Differences at indices: {diff_indices}")
+                
+                print(f"Values in model1 (no_lora): {no_lora_model_state_dict[key][diff_indices]}")
+                print(f"Values in model2 (lora): {lora_state_dict[key][diff_indices]}")
+                print(f"diff sum: {(no_lora_model_state_dict[key] - lora_state_dict[key]).sum()}")
+                # print(no_lora_model_state_dict[key])
+                # print(lora_state_dict[key])
+                # model.base_model.model.score.original_module.weight
+                # model.base_model.model.score.modules_to_save.default.weight
+                # python run.py -m method=negtaskvector_tabular method.retain_scaling_coef=1 method.forget_scaling_coef=0
+                eq = False            
+    for key in lora_state_dict:
+        if key not in no_lora_model_state_dict:
+            print(f"Key {key} is present in model2 but not in model1.")
+            eq = False
+            continue
+        if torch.all(no_lora_model_state_dict[key] == lora_state_dict[key]):
+            continue
+        eq = False
+
+    return eq
 
 if __name__ == "__main__":
     ...

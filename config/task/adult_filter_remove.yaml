@@ -5,7 +5,8 @@ task:
   data_path: 
     train: data/adult_train_${method.fit_target}.json
     valid: data/adult_valid_${method.fit_target}.json
-  remove_features: []
+  remove_features: 
+    - is_male
   shuffle_features: false
 
-#  python run.py task=adult_filter
+#  python run.py -m task=adult_filter_remove method.fit_target=forget,retain

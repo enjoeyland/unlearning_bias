@@ -1,9 +1,9 @@
-from base import BaseDataModule, CombinedDataModule
-from stereoset import StereoSetDataModule
-from civil_comments import CivilCommentsDataModule
-from crows_pairs import CrowsPairsDataModule
-from adult import AdultDataModule
-from compas import CompasDataModule
+from .base import BaseDataModule, CombinedDataModule
+from .stereoset import StereoSetDataModule
+from .civil_comments import CivilCommentsDataModule
+from .crows_pairs import CrowsPairsDataModule
+from .adult import AdultDataModule
+from .compas import CompasDataModule
 
 class DataModuleFactory:
     def __init__(self, module, cfg, tokenizer):
@@ -50,7 +50,7 @@ class DataModuleFactory:
                 filename = "ppl={valid/ppl/dataloader_idx_0:.2f}-bias_score={valid/bias_score:.4f}"
         
         elif task == "adult" or task == "compas":
-            if method == "grad_ascent":
+            if method in ["grad_ascent", "grad_ascent_kd"]:
                 monitor = "valid/equal_opportunity"
                 mode = "min"
             else:

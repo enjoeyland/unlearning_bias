@@ -7,12 +7,7 @@ task:
       - data/adult_train_forget.json
       - data/adult_train_retain.json
     valid: data/adult_valid_retain.json
-  remove_features: []
+  remove_features: 
+    - is_male
   shuffle_features: false
 
-# training:
-#   world_size: 2
-#   per_device_batch_size: 16
-#   gradient_accumulation_steps: 1
-
-#  python run.py task=adult_filter
