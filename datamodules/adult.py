@@ -74,10 +74,16 @@ class AdultDataset(Dataset):
             'attention_mask': inputs['attention_mask'].squeeze(),
             'labels': torch.tensor(item['over_threshold']),
             'is_male': torch.tensor(item['is_male'], dtype=torch.bool),
+            'sensitive_labels': torch.tensor(item['is_male'], dtype=torch.long),
         }
 
 # TODO: 현재 gradient ascent는 Adult에서만 됌. 다른 데이터셋에서도 사용할 수 있도록 수정 필요
 class AdultDataModule(BaseDataModule):
+    rho = 0.2393 # Target P(Y=1)
+    num_classes = 2 # income >= 50k$ or not
+    num_sensitive_classes = 2 # male or female
+    sensitive_attribute = "is_male"
+
     def __init__(self, module, cfg, tokenizer):
         super().__init__(module, cfg)
         self.tokenizer = tokenizer
@@ -97,7 +103,6 @@ class AdultDataModule(BaseDataModule):
         self.remove_features = cfg.task.remove_features
         self.shuffle_features = cfg.task.shuffle_features
         
-        self.num_classes = 2 # income >= 50k$ or not
         self.metrics["_train"].update({
             "accuracy": BinaryAccuracy(),
             "equal_opportunity": EqulityOfOpportunity("is_male", num_groups=2),
@@ -172,26 +177,6 @@ class AdultDataModule(BaseDataModule):
             for item in data["valid"]:
                 self.datasets["valid"].append(AdultDataset(item, self.tokenizer, split='valid', remove_features=remove_features, shuffle_features=self.shuffle_features))
 
-    def regularization_loss_and_metric(self, outputs, batch, batch_idx):
-        prob = torch.softmax(outputs.logits, dim=1)[:, 1]  # P(ŷ=1)
-        
-        # 민감한 속성 그룹 분리
-        group_0 = (batch["is_male"] == False)
-        group_1 = (batch["is_male"] == True)
-
-        # P(ŷ=1 | Y=1, A=0)
-        group_0_y1 = (batch["labels"][group_0] == 1)
-        p_y1_a0 = prob[group_0][group_0_y1].mean() if group_0_y1.sum() > 0 else torch.tensor(0.0).to(prob.device)
-
-        # P(ŷ=1 | Y=1, A=1)
-        group_1_y1 = (batch["labels"][group_1] == 1)
-        p_y1_a1 = prob[group_1][group_1_y1].mean() if group_1_y1.sum() > 0 else torch.tensor(0.0).to(prob.device)
-
-        # Equal Opportunity Difference Penalty
-        eo_penalty = torch.abs(p_y1_a0 - p_y1_a1)
-
-        return eo_penalty, {"train/eod_loss": eo_penalty}
-
 if __name__ == "__main__":
     # PYTHONPATH=$(pwd) python datamodules/adult.py
     import unittest
@@ -203,13 +188,46 @@ if __name__ == "__main__":
         def setUp(self):
             """테스트 전에 호출되어 테스트 환경을 설정"""
             self.cfg = {
-                "training": {"per_device_batch_size": 4},
+                "training": {"per_device_batch_size": 4, "reload_dataloaders_every_epoch": False, "limit_train_batches": 1.0},
                 "cache_dir": get_absolute_path(".cache"),
-                "task": {"data_path": {"train": "data/adult_train.json", "valid": "data/adult_valid.json"}},
+                "task": {"data_path": {"train": "data/adult_train_retain.json", "valid": "data/adult_valid_retain.json"}, "remove_features": ["is_male"], "shuffle_features": False},
                 "data": {"num_workers": 4},
+                "method": {"fit_target": "retain"},
             }
             self.cfg = OmegaConf.create(self.cfg)
-            self.dm = AdultDataModule(self.cfg, tokenizer=None)
+            self.dm = AdultDataModule(module=None, cfg=self.cfg, tokenizer=None)
+
+        def test_statistic_of_dataset(self):
+            """데이터셋의 통계를 확인하는 테스트"""
+            dataset = load_dataset("mstz/adult", "income", cache_dir=self.cfg.cache_dir)
+            for split in dataset:
+                print(f"Split: {split}")
+                print(f"Number of data: {len(dataset[split])}")
+                count = defaultdict(int)
+                for item_data in dataset[split]:
+                    if item_data["is_male"] and item_data["over_threshold"]:
+                        count["male_over_threshold"] += 1
+                    elif item_data["is_male"] and not item_data["over_threshold"]:
+                        count["male_under_threshold"] += 1
+                    elif not item_data["is_male"] and item_data["over_threshold"]:
+                        count["female_over_threshold"] += 1
+                    elif not item_data["is_male"] and not item_data["over_threshold"]:
+                        count["female_under_threshold"] += 1
+                print(f"P(Y=1): {(count['male_over_threshold'] + count['female_over_threshold']) / sum(count.values())}")
+                print(f"P(Y=1|S=1): {count['male_over_threshold'] / (count['male_over_threshold'] + count['male_under_threshold'])}")
+                print(f"P(Y=1|S=0): {count['female_over_threshold'] / (count['female_over_threshold'] + count['female_under_threshold'])}")
+                print()
+                # Split: train
+                # Number of data: 36631
+                # P(Y=1): 0.23927820698315636
+                # P(Y=1|S=1): 0.30322475170638
+                # P(Y=1|S=0): 0.11065439000328839
+
+                # Split: test
+                # Number of data: 12211
+                # P(Y=1): 0.23929244124150356
+                # P(Y=1|S=1): 0.30538922155688625
+                # P(Y=1|S=0): 0.10501489572989077
 
         def test_prepare_data(self):
             """prepare_data 메서드가 올바르게 실행되는지 테스트"""
@@ -233,6 +251,6 @@ if __name__ == "__main__":
                 self.assertIsInstance(dl, DataLoader, "train_dataloader가 DataLoader 객체를 반환해야 함")
             except Exception as e:
                 self.fail(f"train_dataloader 실행 중 오류 발생: {e}")
-    
+                    
     unittest.main()
  

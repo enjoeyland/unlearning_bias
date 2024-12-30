@@ -10,6 +10,7 @@ class DataModuleFactory:
         self.module = module
         self.cfg = cfg
         self.tokenizer = tokenizer
+        self.task = cfg.task.name
     
     def create_datamodule(self, task):
         if "combined" in task:

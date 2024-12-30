@@ -1,0 +1,5 @@
+name : representation
+fit_target: retain  # options: [forget, retain]
+run_name: BS${training.train_batch_size}_LR${training.learning_rate}_S${training.seed}_${method.fit_target}
+
+# python run.py -m method=representation

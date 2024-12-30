@@ -13,12 +13,15 @@ python -u run.py \
     -m \
     logging.progress_bar=tqdm \
     logging.progress_bar_refresh_rate=40 \
-    method=negtaskvector_tabular \
-    method.forget_scaling_coef=0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1 \
-    method.keywords=[remove]\
-    task=adult_filter_remove\
-    method.make_perpendicular=true 
+    method=regularization\
+    method.regularization_weight=0.1,0.5,1
+    
     ### negative task vector
+    # method=negtaskvector_tabular \
+    # method.forget_scaling_coef=0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1 \
+    # method.keywords=[remove]\
+    # task=adult_filter_remove\
+    # method.make_perpendicular=true 
 
     # training.use_lora=false \
     # training.dp_strategy=deepspeed_stage_3 \
