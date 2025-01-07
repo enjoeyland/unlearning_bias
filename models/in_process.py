@@ -1,5 +1,71 @@
+import torch
+
+from .base import BaseModel
+
+class RegularizationModel(BaseModel):
+    def __init__(self, hparams):
+        super().__init__(hparams)
+        self.regularization_coeff = self.hparams.method.regularization_weight
+        self.balance_coeff = 1.0 / self.datamodule.rho * self.hparams.method.balance_weight
+
+    def _get_loss_and_metrics(self, outputs, batch, batch_idx):
+        ce_loss, _ = super()._get_loss_and_metrics(outputs, batch, batch_idx)
+        regular_loss, regular_metrics = self.equal_opportunity_loss_and_metric(outputs, batch, batch_idx)
+        loss = ce_loss + regular_loss
+        metrics = {
+            "train/loss": loss,
+            "train/ce_loss": ce_loss,
+            **regular_metrics
+        }
+        return loss, metrics
+
+    def equal_opportunity_loss_and_metric(self, outputs, batch, batch_idx):
+        prob = torch.softmax(outputs.logits, dim=1)[:, 1]  # P(ŷ=1)
+        
+        # 민감한 속성 그룹 분리
+        sensitive_attribute = self.datamodule.sensitive_attribute
+        group_0 = (batch[sensitive_attribute] == False)
+        group_1 = (batch[sensitive_attribute] == True)
+
+        # P(ŷ=1 | Y=1, A=0)
+        group_0_y1 = (batch["labels"][group_0] == 1)
+        p_y1_a0 = prob[group_0][group_0_y1].mean() if group_0_y1.sum() > 0 else torch.tensor(0.0).to(prob.device)
+
+        # P(ŷ=1 | Y=1, A=1)
+        group_1_y1 = (batch["labels"][group_1] == 1)
+        p_y1_a1 = prob[group_1][group_1_y1].mean() if group_1_y1.sum() > 0 else torch.tensor(0.0).to(prob.device)
+
+        # Equal Opportunity Difference Penalty
+        eo_penalty = self.regularization_coeff * torch.abs(p_y1_a0 - p_y1_a1)
+
+        # Class balance penalty
+        rho = self.datamodule.rho
+        overall_p_y1 = prob.mean()
+        balance_penalty = self.balance_coeff * torch.clamp(rho - overall_p_y1, min=0)
+
+        return eo_penalty + balance_penalty, {"train/eod_loss": eo_penalty, "train/balance_loss": balance_penalty}
+
+class AdversarialRepresentationModel(BaseModel):
+    def __init__(self, hparams):
+        super().__init__(hparams)
+    
+    def configure_model(self):
+        super().configure_model()
+        self.model = DualSequenceClassifierModel(self.model, self.datamodule.num_sensitive_classes)
+    
+    def forward(self, input_ids, attention_mask=None, labels=None, sensitive_labels=None, **inputs):
+        return self.model(input_ids, attention_mask=attention_mask, labels=labels, sensitive_labels=sensitive_labels)
+    
+    def _get_loss_and_metrics(self, outputs, batch, batch_idx):
+        loss = outputs.loss - outputs.second_loss
+        metrics = {"train/loss": loss, "train/y_loss": outputs.loss, "train/a_loss": outputs.second_loss}
+        return loss, metrics
+    
 import torch.nn as nn
 
+from dataclasses import dataclass
+from typing import Optional, Tuple
+from transformers.utils import ModelOutput
 
 class DualSequenceClassifierModel(nn.Module):
     """Adversarial Representation Model"""
@@ -36,13 +102,6 @@ class DualSequenceClassifierModel(nn.Module):
             hidden_states=outputs.hidden_states,
             attentions=outputs.attentions if output_attentions else None
         )
-
-import torch
-
-from dataclasses import dataclass
-from typing import Optional, Tuple
-from transformers.utils import ModelOutput
-
 
 @dataclass
 class DualSequenceClassifierOutputWithPast(ModelOutput):

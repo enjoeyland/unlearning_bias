@@ -1,6 +1,9 @@
+import copy
 import torch
 import torch.nn.functional as F
 from typing import Tuple
+
+from .base import BaseModel
 
 def dpo_loss(
         policy_chosen_logps: torch.FloatTensor,
@@ -77,3 +80,48 @@ def get_batch_logps(logits: torch.FloatTensor, labels: torch.LongTensor, average
 
     # Return average or sum of log probabilities
     return log_probs / loss_mask.sum(dim=-1) if average_log_prob else log_probs
+
+class DpoModel(BaseModel):
+    def __init__(self, hparams):
+        super().__init__(hparams)
+        self.ref_model = None
+    
+    def configure_model(self):
+        super().configure_model()
+        self.ref_model = copy.deepcopy(self.model).eval()
+            
+    def _get_logps(self, outputs, batch):
+        all_logps = get_batch_logps(outputs.logits, batch['labels'], average_log_prob=False)
+        chosen_logps = all_logps[:batch['labels'].size(0)//2]
+        rejected_logps = all_logps[batch['labels'].size(0)//2:]
+        return chosen_logps, rejected_logps
+    
+    def _get_loss_and_metrics(self, policy_outputs, batch, **kwargs):
+        policy_chosen_logps, policy_rejected_logps = self._get_logps(policy_outputs, batch)
+
+        if self.hparams.method.reference_free:
+            reference_chosen_logps = torch.zeros_like(policy_chosen_logps)
+            reference_rejected_logps = torch.zeros_like(policy_rejected_logps)
+        else:
+            with torch.no_grad():
+                ref_outputs = self.ref_model(batch['input_ids'], attention_mask=batch['attention_mask'])
+            reference_chosen_logps, reference_rejected_logps = self._get_logps(ref_outputs, batch)
+
+        loss_kwargs = {'beta': self.hparams.method.beta, 'reference_free': self.hparams.method.reference_free, 'label_smoothing': self.hparams.method.label_smoothing}
+        losses, chosen_rewards, rejected_rewards = dpo_loss(policy_chosen_logps, policy_rejected_logps, reference_chosen_logps, reference_rejected_logps, **loss_kwargs)
+        loss = losses.mean()
+
+        reward_accuracies = (chosen_rewards > rejected_rewards).float()
+        metrics = {
+            f'train/loss': loss,
+            f'train/rewards_chosen': chosen_rewards.mean(),
+            f'train/rewards_rejected': rejected_rewards.mean(),
+            f'train/rewards_accuracy': reward_accuracies.mean(),
+            f'train/rewards_margins': (chosen_rewards - rejected_rewards).mean(),
+            f'train/logpsrejected': policy_rejected_logps.mean(),
+            f'train/logpschosen': policy_chosen_logps.mean(),
+        }
+        return loss, metrics
+    
+    def validation_step(self, batch, batch_idx, dataloader_idx=0):
+        pass
