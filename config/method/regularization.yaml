@@ -2,5 +2,6 @@ name : regularization
 fit_target: retain  # options: [forget, retain]
 run_name: BS${training.train_batch_size}_LR${training.learning_rate}_S${training.seed}_${method.fit_target}
 regularization_weight: 0.5
+balance_weight: 2.0
 
-# python run.py -m method=regularization method.regularization_weight=0.5,0.1,1.0
+# python run.py -m method=regularization method.regularization_weight=1.0 method.balance_weight=2.0

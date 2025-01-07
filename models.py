@@ -228,10 +228,9 @@ class DpoModel(BaseModel):
         rejected_logps = all_logps[batch['labels'].size(0)//2:]
         return chosen_logps, rejected_logps
     
-    # TODO: metric ref_outputs=ref_outputs 처리
-        policy_outputs = self(batch['input_ids'], attention_mask=batch['attention_mask'], labels=batch['labels'])
+    def _get_loss_and_metrics(self, policy_outputs, batch, **kwargs):
         policy_chosen_logps, policy_rejected_logps = self._get_logps(policy_outputs, batch)
-        
+
         if self.hparams.method.reference_free:
             reference_chosen_logps = torch.zeros_like(policy_chosen_logps)
             reference_rejected_logps = torch.zeros_like(policy_rejected_logps)
@@ -254,9 +253,7 @@ class DpoModel(BaseModel):
             f'train/logpsrejected': policy_rejected_logps.mean(),
             f'train/logpschosen': policy_chosen_logps.mean(),
         }
-        metrics.update(self.datamodule.on_step("train", policy_outputs, batch, batch_idx, ref_outputs=ref_outputs))
-        self.log_dict(metrics, on_step=True, prog_bar=True, logger=True, batch_size=batch["input_ids"].size(0), sync_dist=True)
-        return losses.mean()
+        return loss, metrics
     
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         pass
@@ -324,7 +321,7 @@ class RegularizationModel(BaseModel):
     def __init__(self, hparams):
         super().__init__(hparams)
         self.regularization_coeff = self.hparams.method.regularization_weight
-        self.balance_coeff = 1.0 / self.datamodule.rho
+        self.balance_coeff = 1.0 / self.datamodule.rho * self.hparams.method.balance_weight
 
     def _get_loss_and_metrics(self, outputs, batch, batch_idx):
         ce_loss, _ = super()._get_loss_and_metrics(outputs, batch, batch_idx)
