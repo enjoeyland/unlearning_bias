@@ -1,3 +1,11 @@
+# This code is modified from https://github.com/eric-mitchell/direct-preference-optimization/blob/main/trainers.py
+# Licensed under the Apache License, Version 2.0 (c) 2023 Eric Mitchell
+# Modifications include:
+# 1. Removal of IPO-related code
+# 2. Renaming of `preference_loss` to `dpo_loss` and extraction of the `preference_logit` method
+# 3. Code style adjustments and refactoring
+# See the License for the specific language governing permissions and limitations under the License.
+
 import copy
 import torch
 import torch.nn.functional as F
