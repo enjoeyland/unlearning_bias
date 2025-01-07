@@ -84,8 +84,10 @@ class DualSequenceClassifierModel(nn.Module):
         outputs = self.base_model(input_ids, attention_mask=attention_mask, labels=labels, output_hidden_states=True, output_attentions=output_attentions)
 
         # Get hidden states (last layer)
-        hidden_states = outputs.hidden_states[-1]
-        
+        hidden_states = outputs.hidden_states[-2]
+        print(outputs.hidden_states[-1].shape)
+        print(hidden_states.shape)
+
         # Average pooling to reduce sequence to a single vector
         pooled_output = hidden_states.mean(dim=1)
         

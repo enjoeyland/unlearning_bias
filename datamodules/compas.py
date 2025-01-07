@@ -102,7 +102,7 @@ class CompasDataModule(BaseDataModule):
         })
 
     def prepare_data(self) -> None:
-        if self.data_path["train"].exists() and self.data_path["valid"].exists():
+        if Path(self.data_path["train"]).exists() and Path(self.data_path["valid"]).exists():
             return
 
         print("Preparing Compas dataset")
@@ -143,8 +143,8 @@ class CompasDataModule(BaseDataModule):
         data = load_dataset(
             "json", 
             data_files={
-                "train": str(self.data_path["train"].resolve()),
-                "valid": str(self.data_path["valid"].resolve())
+                "train": self.data_path["train"],
+                "valid": self.data_path["valid"]
             },
             cache_dir=self.cache_dir,
         )

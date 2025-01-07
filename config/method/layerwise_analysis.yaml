@@ -1,0 +1,18 @@
+# @package _global_
+method:
+  name: layerwise_analysis
+  fit_target: null  # options: [forget, retain]
+  run_name: BS${training.train_batch_size}_LR${training.learning_rate}_S${training.seed}
+  layerwise_tracker: true
+
+do_train: false
+do_test: true
+
+training:
+  use_lora: false
+  world_size: 1
+  per_device_batch_size: 2
+  gradient_accumulation_steps: 1
+  limit_test_batches: 0.01
+
+# python run.py experiment=dige method=layerwise_analysis task=crows_pairs model=llama3-8b

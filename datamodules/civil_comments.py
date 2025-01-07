@@ -62,7 +62,7 @@ class CivilCommentsDataModule(BaseDataModule):
         })
 
     def prepare_data(self) -> None:
-        if self.data_path.exists():
+        if Path(self.data_path).exists():
             return
 
         print("Preparing CivilComments dataset...")
@@ -93,7 +93,7 @@ class CivilCommentsDataModule(BaseDataModule):
     def setup(self, stage: str):
         data = load_dataset(
             "json", 
-            data_files=str(self.data_path.resolve()),
+            data_files=self.data_path,
             cache_dir=self.cache_dir,
         )["train"]
         

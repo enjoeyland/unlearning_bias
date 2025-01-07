@@ -13,11 +13,9 @@ from torchmetrics.functional.text import perplexity
 from datamodules import BaseDataModule
 from metrics.metric_base import MetricHandler
 from metrics.text import Perplexity
-from datamodules.preference import MultiPromptDataset, MultiPromptDataCollator, ConcatDataCollator
+from datamodules.preference import MultiPromptDataset, SingleDataCollator, ConcatDataCollator
 from utils import get_absolute_path
 
-_STEREOTYPE = "stereotype"
-_ANTI_STEREOTYPE = "anti-stereotype"
 _BIAS_TYPE = ["race-color","socioeconomic", "gender", "disability", "nationality", "sexual-orientation", "physical-appearance", "religion", "age"]
 
 @dataclass
@@ -42,13 +40,13 @@ class BiasScoreDerivation(Metric, MetricHandler):
         self.add_state("antistereo_ppl", default=[], dist_reduce_fx="cat")
     
     def update(self, preds, target, sent_type):
-        if sent_type == _STEREOTYPE:
+        if sent_type == "stereotype":
             stereo_ppl = []
             for i in range(len(preds)):
                 stereo_ppl.append(perplexity(preds[i].unsqueeze(0), target[i].unsqueeze(0), ignore_index=self.ignore_index))
             stereo_ppl = torch.tensor(stereo_ppl, device=preds.device)
             self.stereo_ppl.append(stereo_ppl)
-        elif sent_type == _ANTI_STEREOTYPE:
+        elif sent_type == "antistereotype":
             antistereo_ppl = []
             for i in range(len(preds)):
                 antistereo_ppl.append(perplexity(preds[i].unsqueeze(0), target[i].unsqueeze(0), ignore_index=self.ignore_index))
@@ -56,6 +54,9 @@ class BiasScoreDerivation(Metric, MetricHandler):
             self.antistereo_ppl.append(antistereo_ppl)
     
     def compute(self):
+        stereo_ppl = torch.tensor([])
+        antistereo_ppl = torch.tensor([])
+
         if len(self.stereo_ppl) != 0:
             stereo_ppl = dim_zero_cat(self.stereo_ppl)
         if len(self.antistereo_ppl) != 0:
@@ -75,7 +76,7 @@ class BiasScoreDerivation(Metric, MetricHandler):
         return bias_score
 
     def on_step(self, split, outputs, batch, batch_idx, dataloader_idx=0, *args, **kwargs):
-        return self(outputs.logits[:, :-1], batch["labels"][:, 1:], batch["sent_type"][0])
+        return self(outputs.logits[:, :-1], batch["labels"][:, 1:], batch["prompt_field"])
 
     def on_epoch_end(self, split, *args, **kwargs):
         bias_score = self.compute()
@@ -98,12 +99,12 @@ class CrowsPairsDataModule(BaseDataModule):
         if self.is_pairwised:
             self.collate_fn = ConcatDataCollator(tokenizer, mlm=False)
         else:
-            self.collate_fn = MultiPromptDataCollator(tokenizer, mlm=False)
+            self.collate_fn = SingleDataCollator(tokenizer, mlm=False)
             self.metrics["_valid"].update({"bias_score": BiasScoreDerivation()})
             self.metrics["_test"].update({"bias_score": BiasScoreDerivation()})
 
     def prepare_data(self) -> None:
-        if self.data_path.exists():
+        if Path(self.data_path).exists():
             return
 
         print("Preparing CrowS-Pairs dataset...")
@@ -130,7 +131,7 @@ class CrowsPairsDataModule(BaseDataModule):
     def setup(self, stage: str):
         data = load_dataset(
             "json",
-            data_files=str(self.data_path.resolve()),
+            data_files=self.data_path,
             cache_dir=self.cache_dir,
         )["train"]
 

@@ -79,6 +79,7 @@ def main(cfg):
         default_root_dir=cfg.output_dir,
         reload_dataloaders_every_n_epochs=int(cfg.training.reload_dataloaders_every_epoch),
         limit_train_batches=cfg.training.limit_train_batches,
+        limit_test_batches=cfg.training.limit_test_batches,
         check_val_every_n_epoch= int(2/cfg.training.limit_train_batches/20) if cfg.training.reload_dataloaders_every_epoch else 1,
         num_sanity_val_steps=0,
     )

@@ -41,11 +41,11 @@ class MultiPromptDataset(Dataset):
         
         for field in item.keys():
             if field not in self.prompt_fields:
-                inputs[field] = item[field]         
+                inputs[field] = item[field]
         return inputs
 
 
-class MultiPromptDataCollator:
+class SingleDataCollator:
     def __init__(self, tokenizer: PreTrainedTokenizerBase, mlm: bool = True, **kwargs):
         self.data_collator = DataCollatorForLanguageModeling(
             tokenizer=tokenizer,
@@ -54,12 +54,13 @@ class MultiPromptDataCollator:
         )
 
     def __call__(self, batch):
-        print("batch:", batch)
         inputs = {}
         for field in batch[0].keys():
             inputs[field] = [x[field] for x in batch]
             if isinstance(inputs[field][0], dict):
-                inputs[field] = self.data_collator(inputs[field])
+                inputs.update(self.data_collator(inputs[field]))
+                inputs.pop(field)
+                inputs["prompt_field"] = field
         return inputs
 
 class ConcatDataCollator:
@@ -114,7 +115,7 @@ if __name__ == "__main__":
         {"stereotype": "The nurse is a woman.", "antistereotype": "The nurse is a man.", "bias_type": "gender"},
     ]
     dataset = MultiPromptDataset(data, tokenizer, prompt_fields=["stereotype", "antistereotype"],max_length=10)
-    collator = MultiPromptDataCollator(tokenizer, mlm=False)
+    collator = SingleDataCollator(tokenizer, mlm=False)
     dataloader = DataLoader(dataset, batch_size=2, collate_fn=collator)
     for batch in dataloader:
         print(batch)

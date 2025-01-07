@@ -2,6 +2,7 @@ from .base import BaseModel
 from .dpo import DpoModel
 from .grad_ascent import GradAscentModel, GradAscentKDModel
 from .in_process import RegularizationModel, AdversarialRepresentationModel
+from .layerwise_analysis import LayerwiseAnalyzerModel
 
 class ModelFactory:
     def __init__(self, cfg):
@@ -12,6 +13,7 @@ class ModelFactory:
             'grad_ascent_kd': GradAscentKDModel,
             'regularization': RegularizationModel,
             'representation': AdversarialRepresentationModel,
+            'layerwise_analysis': LayerwiseAnalyzerModel,
         }
     def get_model_class(self):
         method_name = self.cfg.method.name
