@@ -18,6 +18,8 @@ class BaseModel(LightningModule):
         self.save_hyperparameters(hparams)
         
         self.tokenizer = AutoTokenizer.from_pretrained(self.hparams.model.hf, cache_dir=self.hparams.cache_dir, clean_up_tokenization_spaces=True)
+        if self.tokenizer.pad_token_id is None: # for llama3
+            self.tokenizer.pad_token = self.tokenizer.eos_token
 
         self.datamodule = DataModuleFactory(self, self.hparams, self.tokenizer).create_datamodule(self.hparams.task.name)
         self.model = None

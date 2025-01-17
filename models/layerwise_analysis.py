@@ -10,7 +10,8 @@ class LayerwiseAnalyzerModel(BaseModel):
     def __init__(self, hparams):
         super().__init__(hparams)
         self.layerwise_token_tracker = None
-        self.layer_indices = [*range(0, 24, 2), 24 - 1]
+        # self.layer_indices = [*range(0, 24, 2), 24 - 1]
+        self.layer_indices = range(0, 24)
 
     def forward(self, input_ids, attention_mask=None, labels=None, **inputs):
         with self.layerwise_token_tracker as tracker:
@@ -18,6 +19,7 @@ class LayerwiseAnalyzerModel(BaseModel):
             tracker.layerwise_probability_plot(input_ids=input_ids)
             # tracker.scatter_plot(input_ids=input_ids, top_k=3)
             # tracker.heatmap_plot(input_ids=input_ids, top_k=3)
+            tracker.consecutive_jsd_heatmap(input_ids=input_ids)
         return outputs
     
     def configure_model(self):
@@ -55,7 +57,7 @@ class LayerwiseTokenTracker:
         while not hasattr(current_model, "decoder"):
             submodules = [attr for attr in dir(current_model) if isinstance(getattr(current_model, attr), torch.nn.Module)]
             if not submodules:
-                raise AttributeError("No 'layers' attribute found in the model.")
+                raise AttributeError("No 'decoder' attribute found in the model.")
             current_model = getattr(current_model, submodules[0])  # Dive into the first submodule
         return current_model.decoder.layers
 
@@ -190,20 +192,64 @@ class LayerwiseTokenTracker:
         self._save_with_versioning("images", "layerswise_label_token_heatmap", extension="png")
         plt.clf()
 
+    def consecutive_jsd_heatmap(self, input_ids):
+        """
+        Create a heatmap showing the JSD values between layers for all tokens.
+        """
+        num_layers = len(self.probabilities_per_layer)
+        input_ids = input_ids[0].tolist()
+        seq_len = input_ids.index(self.tokenizer.pad_token_id)-1 if self.tokenizer.pad_token_id in input_ids else len(input_ids)
 
+        # Create a matrix to store JSD values between consecutive layers
+        jsd_matrix = np.zeros((num_layers - 1, seq_len))
 
-# input_text = "Hello, how are you?"
-# inputs = tokenizer(input_text, return_tensors="pt")
-# layer_indices = [0, 2, 4]  # Hook layers
+        for layer_idx in range(1, num_layers):
+            prev_layer_probs = torch.tensor(self.probabilities_per_layer[layer_idx - 1])  # Previous layer probabilities
+            curr_layer_probs = torch.tensor(self.probabilities_per_layer[layer_idx])  # Current layer probabilities
 
-# with LayerwiseTokenTracker(tokenizer, model, layer_indices) as tracker:
-#     tracker.model(**inputs)
+            for token_idx in range(seq_len):
+                token_id = input_ids[token_idx+1]
 
-# # Visualize with scatter plot
-# tracker.scatter_plot(inputs, top_k=3)
+                p = prev_layer_probs[token_idx]  # Probability distribution for token in previous layer
+                q = curr_layer_probs[token_idx]  # Probability distribution for token in current layer
+                jsd_value = compute_jsd(p, q)
+                jsd_matrix[layer_idx - 1, token_idx] = jsd_value  # Store JSD value
 
-# # Visualize with heatmap
-# tracker.heatmap_plot(inputs, top_k=3)
+        # Plot the heatmap
+        tokens = [self.tokenizer.convert_ids_to_tokens(tok_id) for tok_id in input_ids[1:seq_len+1]]
+        plt.figure(figsize=(12, 6))
+        sns.heatmap(np.flipud(jsd_matrix), annot=False, cmap="coolwarm", xticklabels=tokens, yticklabels=[f"Layer {i}-{j}" for i,j in list(zip(self.hook_layers, self.hook_layers[1:]))[::-1]])
+        plt.title("Jensen-Shannon Divergence between Consecutive Layers")
+        plt.xlabel("Tokens")
+        plt.ylabel("Layer Pairs")
+        self._save_with_versioning("images", "layerswise_jsd_heatmap", extension="png")
+        plt.clf()
 
-# # Visualize probability for actual input tokens across layers
-# tracker.layerwise_probability_plot(inputs)
+import torch.nn.functional as F
+def compute_jsd(p, q):
+    """
+    Compute Jensen-Shannon Divergence (JSD) between two probability distributions using PyTorch.
+    Args:
+        p: Tensor of shape (batch_size, num_features) - probability distribution P.
+        q: Tensor of shape (batch_size, num_features) - probability distribution Q.
+    Returns:
+        Tensor: JSD for each sample in the batch.
+    """
+    # Ensure the inputs are probability distributions
+    p = F.softmax(p, dim=-1)  # Convert logits to probabilities
+    q = F.softmax(q, dim=-1)
+
+    # M is the pointwise average of p and q
+    M = 0.5 * (p + q)  # Shape: (batch_size, num_features)
+
+    # Log softmax for KL divergence
+    log_p = F.log_softmax(p, dim=-1)  # Shape: (batch_size, num_features)
+    log_q = F.log_softmax(q, dim=-1)
+
+    # KL divergences
+    kl1 = F.kl_div(log_p, M, reduction='batchmean')  # KL(P || M)
+    kl2 = F.kl_div(log_q, M, reduction='batchmean')  # KL(Q || M)
+
+    # JSD
+    jsd = 0.5 * (kl1 + kl2)
+    return jsd

@@ -11,8 +11,8 @@ do_test: true
 training:
   use_lora: false
   world_size: 1
-  per_device_batch_size: 2
+  per_device_batch_size: 1
   gradient_accumulation_steps: 1
-  limit_test_batches: 0.01
+  limit_test_batches: 0.005
 
 # python run.py experiment=dige method=layerwise_analysis task=crows_pairs model=llama3-8b
