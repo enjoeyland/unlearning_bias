@@ -4,6 +4,7 @@ wandb/
 .checkpoints/
 .logs/
 sandbox/
+images/layerwise*.png
 
 #hydra
 outputs/

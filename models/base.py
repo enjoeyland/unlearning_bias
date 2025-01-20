@@ -1,7 +1,5 @@
-import copy
 import torch
 import deepspeed
-import torch.nn.functional as F
 
 from lightning import LightningModule
 from transformers import AutoTokenizer, AutoModelForSequenceClassification, AutoModelForCausalLM, get_linear_schedule_with_warmup, get_cosine_schedule_with_warmup, BitsAndBytesConfig

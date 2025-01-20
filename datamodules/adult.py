@@ -75,6 +75,7 @@ class AdultDataset(Dataset):
             'labels': torch.tensor(item['over_threshold']),
             'is_male': torch.tensor(item['is_male'], dtype=torch.bool),
             'sensitive_labels': torch.tensor(item['is_male'], dtype=torch.long),
+            'idx': idx,
         }
 
 # TODO: 현재 gradient ascent는 Adult에서만 됌. 다른 데이터셋에서도 사용할 수 있도록 수정 필요
