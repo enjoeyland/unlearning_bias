@@ -7,9 +7,9 @@ from metrics.metric_base import MetricDataModule
 from utils import get_absolute_path
 
 class DatasetLoaderModule(LightningDataModule):
-    def __init__(self, module, cfg):
+    def __init__(self, tainer, cfg):
         super().__init__()
-        self._module = module
+        self._tainer = tainer
         self.datasets: dict[str,list[Dataset]] = defaultdict(list)
         self.batch_size = cfg.training.per_device_batch_size
         self.num_workers = cfg.data.num_workers
@@ -27,7 +27,7 @@ class DatasetLoaderModule(LightningDataModule):
             return None
         
         if self.reload_dataloaders_every_epoch:
-            current_idx = self._module.current_epoch % len(self.datasets["train"])
+            current_idx = self._tainer.current_epoch % len(self.datasets["train"])
             dataset = self.datasets["train"][current_idx]
         else:
             dataset = ConcatDataset(self.datasets["train"])

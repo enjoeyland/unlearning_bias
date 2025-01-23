@@ -6,8 +6,8 @@ from .adult import AdultDataModule
 from .compas import CompasDataModule
 
 class DataModuleFactory:
-    def __init__(self, module, cfg, tokenizer):
-        self.module = module
+    def __init__(self, tainer, cfg, tokenizer):
+        self.tainer = tainer
         self.cfg = cfg
         self.tokenizer = tokenizer
         self.task = cfg.task.name
@@ -18,18 +18,18 @@ class DataModuleFactory:
             for target, data_path in zip(self.cfg.task.targets, self.cfg.task.data_paths):
                 self.cfg.task.data_path = data_path
                 datamodules.append(self.create_datamodule(target))
-            return CombinedDataModule(self.module, self.cfg, self.tokenizer, datamodules)
+            return CombinedDataModule(self.tainer, self.cfg, self.tokenizer, datamodules)
 
         if task == "stereoset":
-            return StereoSetDataModule(self.module, self.cfg, self.tokenizer)
+            return StereoSetDataModule(self.tainer, self.cfg, self.tokenizer)
         elif task == "civil_comments":
-            return CivilCommentsDataModule(self.module, self.cfg, self.tokenizer)
+            return CivilCommentsDataModule(self.tainer, self.cfg, self.tokenizer)
         elif task == "crows_pairs":
-            return CrowsPairsDataModule(self.module, self.cfg, self.tokenizer)
+            return CrowsPairsDataModule(self.tainer, self.cfg, self.tokenizer)
         elif task == "adult":
-            return AdultDataModule(self.module, self.cfg, self.tokenizer)
+            return AdultDataModule(self.tainer, self.cfg, self.tokenizer)
         elif task == "compas":
-            return CompasDataModule(self.module, self.cfg, self.tokenizer)
+            return CompasDataModule(self.tainer, self.cfg, self.tokenizer)
         else:
             raise NotImplementedError(f"Task {task} not implemented.")
 
