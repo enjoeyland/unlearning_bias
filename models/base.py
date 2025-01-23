@@ -82,11 +82,6 @@ class BaseModel(LightningModule):
                 model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=True) # lightning에서 안된다 그랬음
             model = get_peft_model(model, lora_config)
 
-        if self.hparams.load_from_checkpoint is not None:
-            model_state_dict = get_state_dict(model)
-            checkpoint_state_dict = get_state_dict(self.hparams.load_from_checkpoint)
-            model_state_dict.update(checkpoint_state_dict)
-
         if self.hparams.do_train:
             model.train()
         else:

@@ -5,6 +5,9 @@ method:
   run_name: BS${training.train_batch_size}_LR${training.learning_rate}_S${training.seed}_${method.fit_target}
 
 load_from_checkpoint: null # finetuned checkpoint
+do_eval: true
 
-
-# python run.py task=adult_filter_review_wrong method=review_wrong load_from_checkpoint='.checkpoints/opt-1.3b/adult/finetune/BS32_LR0.0002_S42_retain/retain_acc\=0.875-eo\=0.5634-spd\=0.2066.ckpt'
+callbacks:
+  eval_steps: 0.5
+  max_tolerance: 3
+# python run.py task=adult_filter_review_wrong method=review_wrong load_from_checkpoint='.checkpoints/opt-1.3b/adult/finetune/BS32_LR0.0002_S42_retain/retain_acc\=0.860-eo\=0.5566-spd\=0.2031.ckpt'

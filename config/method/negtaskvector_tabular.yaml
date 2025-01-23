@@ -27,4 +27,5 @@ training:
   gradient_accumulation_steps: 4
 
 # python run.py -m method=negtaskvector_tabular method.forget_scaling_coef=0,0.2,0.4,0.6,0.8,1
-# python run.py -m method=negtaskvector_tabular method.keywords=[remove] task=adult_filter_removemethod.forget_scaling_coef=0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1
+# python run.py -m method=negtaskvector_tabular method.keywords=[remove] task=adult_filter_remove method.forget_scaling_coef=0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1
+# python run.py -m method=negtaskvector_tabular method.forget_scaling_coef=0 method.retain_scaling_coef=0 load_from_checkpoint='.checkpoints/opt-1.3b/adult/finetune/BS32_LR0.0002_S42_retain/remove_retain_acc\=0.874-eo\=0.5791-spd\=0.2176.ckpt'

@@ -6,7 +6,7 @@ import hydra
 from functools import reduce
 from omegaconf import OmegaConf
 
-print("Importing...")
+print("Importing... ", end="")
 from lightning import Trainer, seed_everything
 from lightning.pytorch.loggers import WandbLogger, CSVLogger
 from lightning.pytorch.accelerators import find_usable_cuda_devices
@@ -41,7 +41,10 @@ def main(cfg):
             name=cfg.logging.name,
         )
 
-    model = ModelFactory(cfg).create_model()
+    if cfg.load_from_checkpoint is None:
+        model = ModelFactory(cfg).create_model()
+    else:
+        model = ModelFactory(cfg).get_model_class().load_from_checkpoint(cfg.load_from_checkpoint, **OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True))
     
     if cfg.method.name == "negtaskvector" or cfg.method.name == "forget_finetune":
         assert not cfg.do_train, "Negtaskvector method is not supported for training"
@@ -83,6 +86,8 @@ def main(cfg):
         check_val_every_n_epoch= int(2/cfg.training.limit_train_batches/20) if cfg.training.reload_dataloaders_every_epoch else 1,
         num_sanity_val_steps=0,
     )
+    if cfg.do_eval and cfg.load_from_checkpoint:
+        trainer.validate(model, datamodule=model.datamodule)
 
     if cfg.do_train:
         trainer.fit(model, datamodule=model.datamodule)

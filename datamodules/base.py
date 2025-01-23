@@ -17,6 +17,10 @@ class DatasetLoaderModule(LightningDataModule):
         self.limit_train_batches = cfg.training.limit_train_batches
         self.collate_fn = None
 
+    def setup(self, stage):
+        super().setup(stage)
+        self.datasets: dict[str,list[Dataset]] = defaultdict(list)
+
     def train_dataloader(self) -> DataLoader:
         if not self.datasets["train"]:
             print("No training data found")

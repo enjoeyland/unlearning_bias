@@ -12,10 +12,13 @@ gpustat
 python -u run.py \
     -m \
     logging.progress_bar=tqdm \
-    logging.progress_bar_refresh_rate=40 \
-    method=regularization\
-    method.regularization_weight=0.1,0.5,1
-    
+    logging.progress_bar_refresh_rate=80 \
+    method.fit_target=retain
+
+    ### regularization
+    # method=regularization\
+    # method.regularization_weight=0.1,0.5,1
+
     ### negative task vector
     # method=negtaskvector_tabular \
     # method.forget_scaling_coef=0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1 \
@@ -54,6 +57,4 @@ python -u run.py \
     # model=opt-6.7b \
 
 
-mkdir ./outputs/${date}
-mkdir ./outputs/${date}/${time}
-mv ./outputs/output_$SLURM_JOB_ID.log ./outputs/${date}/${time}/output.log
+mv ./outputs/output_$SLURM_JOB_ID.log ./outputs/${SLURM_JOB_ID}_${date}_${time}_output.log

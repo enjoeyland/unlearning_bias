@@ -6,7 +6,7 @@ from pathlib import Path
 from dataclasses import dataclass, asdict
 from torch.utils.data import Dataset, DataLoader
 from datasets import load_dataset
-from collections import defaultdict
+from collections import defaultdict, Counter
 
 from datamodules import BaseDataModule
 from metrics.classification import BinaryAccuracy, EqulityOfOpportunity, StatisticalParityDifference
@@ -76,6 +76,7 @@ class AdultDataset(Dataset):
             'is_male': torch.tensor(item['is_male'], dtype=torch.bool),
             'sensitive_labels': torch.tensor(item['is_male'], dtype=torch.long),
             'idx': idx,
+            **item
         }
 
 # TODO: 현재 gradient ascent는 Adult에서만 됌. 다른 데이터셋에서도 사용할 수 있도록 수정 필요
@@ -84,6 +85,24 @@ class AdultDataModule(BaseDataModule):
     num_classes = 2 # income >= 50k$ or not
     num_sensitive_classes = 2 # male or female
     sensitive_attribute = "is_male"
+    # split='train', is_male=True, over_threshold=0: 17048
+    # split='train', is_male=True, over_threshold=1: 7419
+    # split='train', is_male=False, over_threshold=0: 10818
+    # split='train', is_male=False, over_threshold=1: 1346
+    # all -> 36,631
+    # 0 -> 27,866
+    # all 0 -> 76.072%
+    # male 1 -> 20.253%
+    # female 1 -> 3.674%
+
+    # split='valid', is_male=True, over_threshold=0: 22732
+    # split='valid', is_male=True, over_threshold=1: 9918
+    # split='valid', is_male=False, over_threshold=0: 14423
+    # split='valid', is_male=False, over_threshold=1: 1769
+    # all -> 48842
+    # all 0 -> 76.072%
+    # male 1 -> 20.306%
+    # female 1 -> 3.622%
 
     def __init__(self, module, cfg, tokenizer):
         super().__init__(module, cfg)
@@ -123,7 +142,7 @@ class AdultDataModule(BaseDataModule):
             return
 
         print("Preparing Adult dataset")
-
+        counter = Counter()
         encode_dataset = load_dataset("mstz/adult", "encoding", cache_dir=self.cache_dir)["train"]
         dataset = load_dataset("mstz/adult", "income", cache_dir=self.cache_dir)
         
@@ -149,18 +168,23 @@ class AdultDataModule(BaseDataModule):
                 )
                 if (entry.is_male and entry.over_threshold) or (not entry.is_male and not entry.over_threshold):
                     data["forget"].append(asdict(entry))
-                else:
-                    data["retain"].append(asdict(entry))
+                data["retain"].append(asdict(entry))
+                counter[(entry.is_male, entry.over_threshold)] += 1
             
             split = "train" if split == "train" else "valid"
             for target in data:
                 for path in self.data_paths[split]:
                     if target in path:
                         break
+                else:
+                    continue
                 with open(path, "w") as f:
                     json.dump(data[target], f, indent=2)
+            for (is_male, over_threshold), count in counter.items():
+                print(f"{split=}, {is_male=}, {over_threshold=}: {count}")
 
     def setup(self, stage: str):
+        super().setup(stage)
         data = defaultdict(list)
         for split in self.data_paths:
             for path in self.data_paths[split]:

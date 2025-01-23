@@ -18,10 +18,8 @@ class TaskVector():
                 finetuned_state_dict = get_state_dict(finetuned_checkpoint)
 
                 self.vector = {}
+                print("Warning: Missing keys in finetuned_state_dict:", set(pretrained_state_dict.keys()) - set(finetuned_state_dict.keys()))
                 for key in pretrained_state_dict:
-                    if key not in finetuned_state_dict:
-                        print(f'Warning: key {key} is present in the pretrained state dict but not in the finetuned state dict')
-                        # continue
                     if pretrained_state_dict[key].dtype in [torch.int64, torch.uint8]:
                         continue
                     elif "lora_A" in key or "lora_B" in key:
@@ -54,9 +52,9 @@ class TaskVector():
         if isinstance(other, TaskVector):
             with torch.no_grad():
                 new_vector = {}
+                print("Warning: Missing keys in other task vector:", set(self.vector.keys()) - set(other.vector.keys()))
                 for key in self.vector:
                     if key not in other.vector:
-                        print(f'Warning, key {key} is not present in both task vectors.')
                         continue
                     new_vector[key] = self.vector[key] + other.vector[key]
             return TaskVector(vector=new_vector)
@@ -64,11 +62,12 @@ class TaskVector():
         elif isinstance(other, torch.nn.Module):
             model_state_dict = get_state_dict(other)
             with torch.no_grad():
+                print("Warning: Missing keys in finetuned_state_dict:", set(self.vector.keys()) - set(model_state_dict.keys()))
                 for key in self.vector:
                     if key not in model_state_dict:
-                        print(f'Warning: key {key} is present in the task vector but not in the pretrained state dict')
                         continue
                     model_state_dict[key] += self.vector[key]
+                other.load_state_dict(model_state_dict)
             return other
         
 
