@@ -25,10 +25,13 @@ class AdultData:
     occupation: str # Job of the person
     race: str
     relationship: str
-    is_male: bool
+    gender: int
     workclass: str
     over_threshold: int # 1 for income >= 50k$, 0 otherwise.
 
+    @property
+    def _gender(self) -> str:
+        return {0: "male", 1: "female"}.get(self.gender)
 
 class AdultDataset(Dataset):
     def __init__(self, data, tokenizer, split='train', max_length=128, remove_features=[], shuffle_features=True):
@@ -52,8 +55,8 @@ class AdultDataset(Dataset):
         for feature in features:
             if feature in self.remove_features+["over_threshold"]:
                 continue
-            elif feature == "is_male":
-                feature_text.append(f"gender is {"male" if item[feature] else "female"}")
+            elif feature == "gender":
+                feature_text.append(f"genders is {"male" if item[feature] == 0 else "female"}")
             else:
                 feature_text.append(f"{' '.join(feature.split('_'))} is {item[feature]}")
         else:
@@ -73,8 +76,8 @@ class AdultDataset(Dataset):
             'input_ids': inputs['input_ids'].squeeze(),
             'attention_mask': inputs['attention_mask'].squeeze(),
             'labels': torch.tensor(item['over_threshold']),
-            'is_male': torch.tensor(item['is_male'], dtype=torch.bool),
-            'sensitive_labels': torch.tensor(item['is_male'], dtype=torch.long),
+            'gender': torch.tensor(item['gender']),
+            'sensitive_labels': torch.tensor(item['gender']),
             'idx': idx,
             **item
         }
@@ -84,21 +87,21 @@ class AdultDataModule(BaseDataModule):
     rho = 0.2393 # Target P(Y=1)
     num_classes = 2 # income >= 50k$ or not
     num_sensitive_classes = 2 # male or female
-    sensitive_attribute = "is_male"
-    # split='train', is_male=True, over_threshold=0: 17048
-    # split='train', is_male=True, over_threshold=1: 7419
-    # split='train', is_male=False, over_threshold=0: 10818
-    # split='train', is_male=False, over_threshold=1: 1346
+    sensitive_attribute = "gender"
+    # split='train', gender=male, over_threshold=0: 17048
+    # split='train', gender=male, over_threshold=1: 7419
+    # split='train', gender=female, over_threshold=0: 10818
+    # split='train', gender=female, over_threshold=1: 1346
     # all -> 36,631
     # 0 -> 27,866
     # all 0 -> 76.072%
     # male 1 -> 20.253%
     # female 1 -> 3.674%
 
-    # split='valid', is_male=True, over_threshold=0: 22732
-    # split='valid', is_male=True, over_threshold=1: 9918
-    # split='valid', is_male=False, over_threshold=0: 14423
-    # split='valid', is_male=False, over_threshold=1: 1769
+    # split='valid', gender=male, over_threshold=0: 22732
+    # split='valid', gender=male, over_threshold=1: 9918
+    # split='valid', gender=female, over_threshold=0: 14423
+    # split='valid', gender=female, over_threshold=1: 1769
     # all -> 48842
     # all 0 -> 76.072%
     # male 1 -> 20.306%
@@ -125,13 +128,13 @@ class AdultDataModule(BaseDataModule):
         
         self.metrics["_train"].update({
             "accuracy": BinaryAccuracy(),
-            "equal_opportunity": EqulityOfOpportunity("is_male", num_groups=2),
-            "spd": StatisticalParityDifference("is_male", num_groups=2),
+            "equal_opportunity": EqulityOfOpportunity("gender", num_groups=2),
+            "spd": StatisticalParityDifference("gender", num_groups=2),
         })
         self.metrics["_valid"].update({
             "accuracy": BinaryAccuracy(),
-            "equal_opportunity": EqulityOfOpportunity("is_male", num_groups=2),
-            "spd": StatisticalParityDifference("is_male", num_groups=2),
+            "equal_opportunity": EqulityOfOpportunity("gender", num_groups=2),
+            "spd": StatisticalParityDifference("gender", num_groups=2),
         })
 
     def prepare_data(self) -> None:
@@ -162,14 +165,14 @@ class AdultDataModule(BaseDataModule):
                     occupation=item_data["occupation"],
                     race=item_data["race"],
                     relationship=item_data["relationship"],
-                    is_male=item_data["is_male"],
+                    gender=0 if item_data["is_male"] else 1,
                     workclass=item_data["workclass"],
                     over_threshold=item_data["over_threshold"],
                 )
-                if (entry.is_male and entry.over_threshold) or (not entry.is_male and not entry.over_threshold):
+                if (entry._gender == "male" and entry.over_threshold) or (entry._gender == "female" and not entry.over_threshold):
                     data["forget"].append(asdict(entry))
                 data["retain"].append(asdict(entry))
-                counter[(entry.is_male, entry.over_threshold)] += 1
+                counter[(entry._gender, entry.over_threshold)] += 1
             
             split = "train" if split == "train" else "valid"
             for target in data:
@@ -180,11 +183,10 @@ class AdultDataModule(BaseDataModule):
                     continue
                 with open(path, "w") as f:
                     json.dump(data[target], f, indent=2)
-            for (is_male, over_threshold), count in counter.items():
-                print(f"{split=}, {is_male=}, {over_threshold=}: {count}")
+            for (gender, over_threshold), count in counter.items():
+                print(f"{split=}, {gender=}, {over_threshold=}: {count}")
 
     def setup(self, stage: str):
-        super().setup(stage)
         data = defaultdict(list)
         for split in self.data_paths:
             for path in self.data_paths[split]:
@@ -215,12 +217,12 @@ if __name__ == "__main__":
             self.cfg = {
                 "training": {"per_device_batch_size": 4, "reload_dataloaders_every_epoch": False, "limit_train_batches": 1.0},
                 "cache_dir": get_absolute_path(".cache"),
-                "task": {"data_path": {"train": "data/adult_train_retain.json", "valid": "data/adult_valid_retain.json"}, "remove_features": ["is_male"], "shuffle_features": False},
+                "task": {"data_path": {"train": "data/adult_train_retain.json", "valid": "data/adult_valid_retain.json"}, "remove_features": ["gender"], "shuffle_features": False},
                 "data": {"num_workers": 4},
                 "method": {"fit_target": "retain"},
             }
             self.cfg = OmegaConf.create(self.cfg)
-            self.dm = AdultDataModule(module=None, cfg=self.cfg, tokenizer=None)
+            self.dm = AdultDataModule(tainer=None, cfg=self.cfg, tokenizer=None)
 
         def test_statistic_of_dataset(self):
             """데이터셋의 통계를 확인하는 테스트"""

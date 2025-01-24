@@ -28,7 +28,7 @@ class EqulityOfOpportunity(classification.BinaryFairness, MetricHandler):
     def on_step(self, split, outputs, batch, batch_idx, dataloader_idx=0, *args, **kwargs):
         preds = outputs.logits.argmax(dim=1)
         target = batch["labels"]
-        groups = batch[self.group_name].long()
+        groups = batch[self.group_name]
         # print(f"preds: {preds}, target: {target}, groups: {groups}")
         return self(preds, target, groups)
 
@@ -55,5 +55,5 @@ class StatisticalParityDifference(classification.BinaryFairness, MetricHandler):
 
     def on_step(self, split, outputs, batch, batch_idx, dataloader_idx=0, *args, **kwargs):
         preds = outputs.logits.argmax(dim=1)
-        groups = batch[self.group_name].long()
+        groups = batch[self.group_name]
         return self(preds, None, groups)

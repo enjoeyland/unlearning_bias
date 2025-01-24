@@ -19,7 +19,7 @@ class BaseModel(LightningModule):
         if self.tokenizer.pad_token_id is None: # for llama3
             self.tokenizer.pad_token = self.tokenizer.eos_token
 
-        self.datamodule = DataModuleFactory(self.trainer, self.hparams, self.tokenizer).create_datamodule(self.hparams.task.name)
+        self.datamodule = DataModuleFactory(self, self.hparams, self.tokenizer).create_datamodule(self.hparams.task.name)
         self.model = None
         self.metrics = self.datamodule.metrics
 

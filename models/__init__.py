@@ -4,6 +4,7 @@ from .grad_ascent import GradAscentModel, GradAscentKDModel
 from .in_process import RegularizationModel, AdversarialRepresentationModel
 from .layerwise_analysis import LayerwiseAnalyzerModel
 from .influence_func import ReviewWrongAnswerModel
+from .resample import ResampleModel
 
 class ModelFactory:
     def __init__(self, cfg):
@@ -16,6 +17,7 @@ class ModelFactory:
             'representation': AdversarialRepresentationModel,
             'layerwise_analysis': LayerwiseAnalyzerModel,
             'review_wrong': ReviewWrongAnswerModel,
+            'resample': ResampleModel,
         }
     def get_model_class(self):
         method_name = self.cfg.method.name

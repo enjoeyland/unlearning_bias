@@ -1,24 +1,24 @@
-from pathlib import Path
 from collections import defaultdict
 from lightning import LightningDataModule
-from torch.utils.data import  DataLoader, ConcatDataset, Dataset
+from torch.utils.data import  DataLoader, ConcatDataset, Dataset, Sampler
+from itertools import chain
 
 from metrics.metric_base import MetricDataModule
 from utils import get_absolute_path
 
 class DatasetLoaderModule(LightningDataModule):
-    def __init__(self, tainer, cfg):
+    def __init__(self, module, cfg):
         super().__init__()
-        self._tainer = tainer
+        self._module = module
         self.datasets: dict[str,list[Dataset]] = defaultdict(list)
         self.batch_size = cfg.training.per_device_batch_size
         self.num_workers = cfg.data.num_workers
         self.reload_dataloaders_every_epoch = cfg.training.reload_dataloaders_every_epoch
         self.limit_train_batches = cfg.training.limit_train_batches
+        self.sampler = None
         self.collate_fn = None
 
     def setup(self, stage):
-        super().setup(stage)
         self.datasets: dict[str,list[Dataset]] = defaultdict(list)
 
     def train_dataloader(self) -> DataLoader:
@@ -27,17 +27,24 @@ class DatasetLoaderModule(LightningDataModule):
             return None
         
         if self.reload_dataloaders_every_epoch:
-            current_idx = self._tainer.current_epoch % len(self.datasets["train"])
+            current_idx = self._module.current_epoch % len(self.datasets["train"])
             dataset = self.datasets["train"][current_idx]
         else:
             dataset = ConcatDataset(self.datasets["train"])
         
+        if self.sampler is not None and isinstance(self.sampler, BaseSampler):
+            if hasattr(dataset, "data"):
+                self.sampler.set_data(dataset.data)
+            else:
+                self.sampler.set_data(list(chain.from_iterable(d.data for d in self.datasets["train"])))
+
         return DataLoader(
                 dataset,
                 batch_size=self.batch_size,
                 num_workers=self.num_workers,
                 pin_memory=True,
-                shuffle=True,
+                shuffle=True if self.sampler is None else False,
+                sampler=self.sampler,
                 collate_fn=self.collate_fn
             )
 
@@ -76,6 +83,10 @@ class DatasetLoaderModule(LightningDataModule):
             )
             dataloaders.append(dataloader)
         return dataloaders
+
+class BaseSampler(Sampler):
+    def set_data(self, data):
+        self.data = data
 
 class BaseDataModule(DatasetLoaderModule, MetricDataModule):
     ...
