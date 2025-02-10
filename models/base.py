@@ -25,11 +25,13 @@ class BaseModel(LightningModule):
 
     def _get_target_modules(self):
         if "opt" in self.hparams.model.name:
-            return ["k_proj", "q_proj", "v_proj", "out_proj"]
+            return ["k_proj", "q_proj", "v_proj", "out_proj"] # mlp: fc1, fc2
+        elif "llama3" in self.hparams.model.name:
+            return ["k_proj", "q_proj", "v_proj", "o_proj"] # mlp: gate_proj, up_proj, down_proj
         else:
             model = AutoModelForCausalLM.from_pretrained(self.hparams.model.hf, cache_dir=self.hparams.cache_dir)
             print(model)
-            raise ValueError(f"Model {self.hparams.model.name} not supported.")
+            raise ValueError(f"Model {self.hparams.model.name} not supported. Please specify target modules.")
 
     def configure_model(self):
         if self.model is not None:
@@ -81,6 +83,9 @@ class BaseModel(LightningModule):
             if self.hparams.training.load_in_4bit or self.hparams.training.load_in_8bit:
                 model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=True) # lightning에서 안된다 그랬음
             model = get_peft_model(model, lora_config)
+
+        if model.config.pad_token_id is None: # for llama3
+            model.config.pad_token_id = model.config.eos_token_id
 
         if self.hparams.do_train:
             model.train()

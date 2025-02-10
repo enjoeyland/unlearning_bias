@@ -6,9 +6,13 @@ model:
     learning_rate: 5e-4
 
 training:
-    world_size: 1
-    per_device_batch_size: 1
-    gradient_accumulation_steps: 8
+    world_size: 2
+    per_device_batch_size: 4
+    gradient_accumulation_steps: 32
 
+callbacks:
+    eval_steps: 0.25
 
-# python run.py -m model=llama3-8b method.fit_target=forget,retain
+# python run.py -m model=llama3-8b method.fit_target=retain
+# 4090 deepspeed로 하면 batchsize 1인데도 3초에 1 step 실행된다. 
+# 최대 batchsize 4까지 가능하다.
