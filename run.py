@@ -2,6 +2,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import os
+import sys
+import shlex
 import hydra
 from functools import reduce
 from omegaconf import OmegaConf
@@ -99,6 +101,12 @@ def main(cfg):
         trainer.test(model, datamodule=model.datamodule)
 
 if __name__ == "__main__":
+    argv = (
+        shlex.split(" ".join(sys.argv[1:]))
+        if "USED_VSCODE_COMMAND_PICKARGS" in os.environ
+        else sys.argv[1:]
+    )
+    sys.argv = [sys.argv[0]] + argv # TODO: SLURM srun prevents the Python debugger from running with arguments. It does not connect with VSCode.
     main()
 
     # if torch.cuda.is_available():

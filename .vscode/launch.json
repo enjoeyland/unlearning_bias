@@ -1,0 +1,106 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "SLURM a6000 Debug",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "run.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": [
+                "-m", 
+                "${command:pickArgs}"
+            ],
+            "env": {
+                "USED_VSCODE_COMMAND_PICKARGS": "1",
+            },
+            "debugOptions": [
+                "WaitOnAbnormalExit",
+                "WaitOnNormalExit"
+            ],
+            "python": "/home/khmin1104/.anaconda3/bin/python"
+        },
+        {
+            "name": "Attach to Remote Debugpy",
+            "type": "python",
+            "request": "attach",
+            "connect": {
+                "host": "localhost",
+                "port": 55433
+            },
+            "pathMappings": [
+                {
+                    "localRoot": "${workspaceFolder}",
+                    "remoteRoot": "/home/khmin1104/workspace/unlearning_bias"
+                }
+            ],
+            "justMyCode": false
+        }
+    ]
+}
+// {
+//     "version": "0.2.0",
+//     "configurations": [
+//         {
+//             "name": "SLURM a6000 Debug",
+//             "type": "debugpy",
+//             "request": "launch",
+//             "program": "/usr/bin/srun",
+//             "console": "integratedTerminal",
+//             "justMyCode": false,
+//             "args": [
+//                 "-p", "suma_a6000",
+//                 "--gres=gpu:2",
+//                 "--time=5:00:00",
+//                 "--pty",
+//                 "/home/khmin1104/.anaconda3/bin/python",
+//                 "run.py",
+//                 "-m",
+//                 "${command:pickArgs}"
+//             ],
+//             "env": {
+//                 "USED_VSCODE_COMMAND_PICKARGS": "1"
+//             },
+//             "debugOptions": [
+//                 "WaitOnAbnormalExit",
+//                 "WaitOnNormalExit"
+//             ]
+//         }
+//     ]
+// }
+// {
+//     "version": "0.2.0",
+//     "configurations": [
+//         {
+//             "name": "SLURM a6000 Debug",
+//             "type": "debugpy",
+//             "request": "launch",
+//             "program": "/usr/bin/srun",  // SLURM 실행을 위한 srun 추가
+//             "args": [
+//                 "--partition=suma_a6000",
+//                 "--gres=gpu:2",
+//                 "--time=5:00:00",
+//                 "--job-name=VSCodeDebug",
+//                 "--pty",
+//                 "/home/khmin1104/.anaconda3/bin/python",
+//                 "-m", 
+//                 "debugpy",
+//                 "--listen", "5678",  // Debugger가 기다릴 포트
+//                 "--wait-for-client", // VS Code가 연결될 때까지 기다리기
+//                 "run.py",
+//                 "-m",
+//                 "${command:pickArgs}"
+//             ],
+//             "console": "integratedTerminal",
+//             "justMyCode": false,
+//             "env": {
+//                 "USED_VSCODE_COMMAND_PICKARGS": "1"
+//             },
+//             "debugOptions": [
+//                 "WaitOnAbnormalExit",
+//                 "WaitOnNormalExit"
+//             ]
+//         }
+//     ]
+// }
