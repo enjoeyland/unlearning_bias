@@ -1,0 +1,19 @@
+# @package _global_
+defaults:
+  - /model: llama3.1-8b-instruct
+  - _self_
+  - /task: adult_causal
+  - /prompt: zero_shot
+
+training:
+  # use_lora: true
+  world_size: 1
+  per_device_batch_size: 8
+  gradient_accumulation_steps: 1
+
+do_train: false
+do_eval: false
+do_test: true
+
+# python run.py -m experiment=tabular_with_generation
+# python run.py -m experiment=tabular_with_generation model=llama3-8b do_eval=true do_test=false 

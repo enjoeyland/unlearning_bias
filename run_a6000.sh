@@ -8,13 +8,15 @@ date=`date +%Y-%m-%d`
 time=`date +%H-%M-%S`
 
 gpustat
-
 python -u run.py \
     -m \
-    experiment=tabular_without_lora \
-    method.fit_target=forget \
     logging.progress_bar=tqdm \
     logging.progress_bar_refresh_rate=40 \
+    experiment=tabular_with_generation \
+    model=gpt-3.5
+
+    # model=llama3-8b \
+    # method.fit_target=retain \
     # model.learning_rate=3e-5\
 
     # training.use_lora=false \
@@ -50,6 +52,4 @@ python -u run.py \
     # task=crows_pairs \
     # model=opt-6.7b \
 
-mkdir ./outputs/${date}
-mkdir ./outputs/${date}/${time}
-mv ./outputs/output_$SLURM_JOB_ID.log ./outputs/${date}/${time}/output.log
+mv ./outputs/output_$SLURM_JOB_ID.log ./outputs/${SLURM_JOB_ID}_${date}_${time}_output.log

@@ -5,6 +5,7 @@ from .in_process import RegularizationModel, AdversarialRepresentationModel
 from .layerwise_analysis import LayerwiseAnalyzerModel
 from .influence_func import ReviewWrongAnswerModel
 from .resample import ResampleModel
+from .generation import GenerationModel
 
 class ModelFactory:
     def __init__(self, cfg):
@@ -18,6 +19,7 @@ class ModelFactory:
             'layerwise_analysis': LayerwiseAnalyzerModel,
             'review_wrong': ReviewWrongAnswerModel,
             'resample': ResampleModel,
+            'zero_shot': GenerationModel,
         }
     def get_model_class(self):
         method_name = self.cfg.method.name

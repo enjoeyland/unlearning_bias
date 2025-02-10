@@ -7,3 +7,5 @@ datasets
 peft
 deepspeed
 # aif360
+langchain
+langchain_openai # for gpt3

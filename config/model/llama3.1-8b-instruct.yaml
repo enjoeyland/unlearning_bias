@@ -1,0 +1,6 @@
+# @package _global_
+model:
+    name: llama3.1-8b-instruct
+    hf: meta-llama/Llama-3.1-8B-Instruct
+    type: decoder
+    learning_rate: 5e-4

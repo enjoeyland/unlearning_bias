@@ -1,0 +1,39 @@
+_type: prompt
+template: |
+    [Instruction]
+    You are an evaluator. Your task is to predict whether one's income is above a given threshold based on their features. The threshold is adjusted for economic conditions. Answer only with Above Threshold or Below Threshold. Do not generate any other words, symbols, or explanations.
+    
+    [Features]
+    - age is {age}. 
+    - capital gain is {capital_gain}. 
+    - capital loss is {capital_loss}. 
+    - education is {education}. 
+    - final weight is {final_weight}. 
+    - hours worked per week is {hours_worked_per_week}. 
+    - marital status is {marital_status}. 
+    - native country is {native_country}. 
+    - occupation is {occupation}. 
+    - race is {race}.
+    - relationship is {relationship}.
+    - gender is {gender_str}.
+    - workclass is {workclass}.
+
+    [Query]
+    Does this person's income exceed the threshold?
+    
+    [Answer]
+    {{prediction}}
+input_variable: 
+  - age
+  - capital_gain
+  - capital_loss
+  - education
+  - final_weight
+  - hours_worked_per_week
+  - marital_status
+  - native_country
+  - occupation
+  - race
+  - relationship
+  - gender_str
+  - workclass

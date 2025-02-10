@@ -1,0 +1,5 @@
+# @package _global_
+method:
+  name: zero_shot
+  fit_target: prompt  # options: [forget, retain]
+  run_name: BS${training.train_batch_size}_P${method.name}_S${training.seed}

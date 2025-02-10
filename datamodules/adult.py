@@ -32,22 +32,67 @@ class AdultData:
     @property
     def _gender(self) -> str:
         return {0: "male", 1: "female"}.get(self.gender)
+    
+    @staticmethod
+    def gender_map(gender: int) -> str:
+        return {0: "male", 1: "female"}.get(gender)
+    
+    # @staticmethod
+    # def questionmark_map(value: str) -> str:
+    #     return "unknown" if value == "?" else value
 
 class AdultDataset(Dataset):
-    def __init__(self, data, tokenizer, split='train', max_length=128, remove_features=[], shuffle_features=True):
+    def __init__(self, data, tokenizer, split='train', max_length=128, remove_features=[], shuffle_features=True, is_prompt=False):
         self.data = data
         self.split = split
         self.tokenizer = tokenizer
         self.max_length = max_length
         self.remove_features = remove_features
         self.shuffle_features = shuffle_features
+        self.is_prompt = is_prompt
+        if self.is_prompt:
+            self.max_length += 128
 
     def __len__(self):
         return len(self.data)
 
     def __getitem__(self, idx):
         item = self.data[idx]
+        result = {
+            'labels': torch.tensor(item['over_threshold']),
+            # 'sensitive_labels': torch.tensor(item['gender']),
+            'gender_str': AdultData.gender_map(item['gender']),
+            'idx': idx,
+            **item,
+        }
 
+        text = self.get_prompt(item)
+        # text = f"age is {item['age']}, capital gain is {item['capital_gain']}, capital loss is {item['capital_loss']}, education is {item['education']}, final weight is {item['final_weight']}, hours worked per week is {item['hours_worked_per_week']}, marital status is {item['marital_status']}, native country is {item['native_country']}, occupation is {item['occupation']},"
+
+        if self.tokenizer:
+            inputs = self.tokenizer(
+                text, 
+                padding='max_length',
+                max_length=self.max_length,
+                truncation=True,
+                return_tensors='pt'
+            )
+            result.update({
+                'input_ids': inputs['input_ids'].squeeze(),
+                'attention_mask': inputs['attention_mask'].squeeze(),
+            })
+            
+        return result 
+
+    def get_prompt(self, item):
+        text = ""
+        if self.is_prompt:
+            # text += "You must predict if income exceeds $50K/yr. Answer with one of the following: greater than 50K | less than or equal to 50K."
+            # text += "## Instruction\nYou must predict if income exceeds $50K/yr. Answer only with \"Yes\" or \"No\"\n\n## Features"
+            # text += "[INST]You are an evaluator. Predict if one's income exceeds $50K/yr based on given one's features. Answer with one of the following: less than or equal to 50K or greater than 50K.[/INST]\n\n[Features]"
+            # text += "[INST]You are an evaluator. Your task is to predict if one's income exceeds $50K/yr based on given features. Answer only with one of the following: less than 50K or greater than 50K. Do not generate any other words, symbols, or explanations.[/INST]\n\n[Features]"
+            text += "[INST]You are an evaluator. Your task is to predict whether one's income is above a given threshold based on their features. The threshold is adjusted for economic conditions. Answer only with Above Threshold or Below Threshold. Do not generate any other words, symbols, or explanations.[/INST]\n\n[Features]"
+        
         feature_text = []
         features = list(item.keys())
         if self.shuffle_features:
@@ -56,31 +101,20 @@ class AdultDataset(Dataset):
             if feature in self.remove_features+["over_threshold"]:
                 continue
             elif feature == "gender":
-                feature_text.append(f"genders is {"male" if item[feature] == 0 else "female"}")
+                feature_text.append(f"- gender: {"male" if item[feature] == 0 else "female"}")
+                # feature_text.append(f"genders is {"male" if item[feature] == 0 else "female"}")
             else:
-                feature_text.append(f"{' '.join(feature.split('_'))} is {item[feature]}")
+                feature_text.append(f"- {' '.join(feature.split('_'))}: {"unknown" if item[feature] == "?" else item[feature]}")
+                # feature_text.append(f"{' '.join(feature.split('_'))} is {"unknown" if item[feature] == "?" else item[feature]}")
+        text += ".\n".join(feature_text)
+        if self.is_prompt:
+            text +="\n[Query]\nDoes this person's income exceed the threshold?\n\n[Answer]\n"
+            # text +="\n\n[Answer]\n"
+            # text +="\n## Answer\nIncome is "
         else:
-            feature_text.append("is income over 50k$?")
-        text = ", ".join(feature_text)
-        # text = f"age is {item['age']}, capital gain is {item['capital_gain']}, capital loss is {item['capital_loss']}, education is {item['education']}, final weight is {item['final_weight']}, hours worked per week is {item['hours_worked_per_week']}, marital status is {item['marital_status']}, native country is {item['native_country']}, occupation is {item['occupation']},"
+            text += "\nIs income over $50k?"
+        return text
 
-        inputs = self.tokenizer(
-            text, 
-            padding='max_length',
-            max_length=self.max_length,
-            truncation=True,
-            return_tensors='pt'
-        )
-
-        return {
-            'input_ids': inputs['input_ids'].squeeze(),
-            'attention_mask': inputs['attention_mask'].squeeze(),
-            'labels': torch.tensor(item['over_threshold']),
-            'gender': torch.tensor(item['gender']),
-            'sensitive_labels': torch.tensor(item['gender']),
-            'idx': idx,
-            **item
-        }
 
 # TODO: 현재 gradient ascent는 Adult에서만 됌. 다른 데이터셋에서도 사용할 수 있도록 수정 필요
 class AdultDataModule(BaseDataModule):
@@ -109,6 +143,8 @@ class AdultDataModule(BaseDataModule):
 
     def __init__(self, module, cfg, tokenizer):
         super().__init__(module, cfg)
+        if not tokenizer:
+            print("Warning: Tokenizer is not provided.")
         self.tokenizer = tokenizer
         self.cache_dir = cfg.cache_dir
 
@@ -125,7 +161,8 @@ class AdultDataModule(BaseDataModule):
 
         self.remove_features = cfg.task.remove_features
         self.shuffle_features = cfg.task.shuffle_features
-        
+        self.is_prompt = cfg.method.fit_target == "prompt"
+
         self.metrics["_train"].update({
             "accuracy": BinaryAccuracy(),            
             "eo": EqulityOfOpportunity("gender", num_groups=2),
@@ -208,10 +245,26 @@ class AdultDataModule(BaseDataModule):
         if stage == "fit":
             for split in data:
                 for item in data[split]:
-                    self.datasets[split].append(AdultDataset(item, self.tokenizer, split=split, remove_features=remove_features, shuffle_features=self.shuffle_features))
+                    self.datasets[split].append(AdultDataset(item, self.tokenizer, split=split, remove_features=remove_features, shuffle_features=self.shuffle_features, is_prompt=self.is_prompt))
         elif stage == "validate":
             for item in data["valid"]:
-                self.datasets["valid"].append(AdultDataset(item, self.tokenizer, split='valid', remove_features=remove_features, shuffle_features=self.shuffle_features))
+                self.datasets["valid"].append(AdultDataset(item, self.tokenizer, split='valid', remove_features=remove_features, shuffle_features=self.shuffle_features, is_prompt=self.is_prompt))
+        elif stage == "test":
+            for item in data["test"]:
+                self.datasets["test"].append(AdultDataset(item, self.tokenizer, split='test', remove_features=remove_features, shuffle_features=self.shuffle_features, is_prompt=self.is_prompt))
+
+    def parse_string(self, text):
+        results = []
+        for line in text:
+            line = line.split("[Answer]")[1].strip()
+            # print("Answer:", line)
+            if "Above Threshold" in line:
+                results.append(1)
+            elif "Below Threshold" in line:
+                results.append(0)
+            else:
+                results.append(-1)
+        return torch.tensor(results)
 
 if __name__ == "__main__":
     # PYTHONPATH=$(pwd) python datamodules/adult.py
