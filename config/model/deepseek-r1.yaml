@@ -1,0 +1,9 @@
+# @package _global_
+model:
+  name: deepseek-r1
+  hf: deepseek-ai/DeepSeek-R1
+  type: decoder
+  learning_rate: 5e-4
+
+# training:
+#   load_in_8bit: true

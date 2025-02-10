@@ -52,7 +52,11 @@ class BaseModel(LightningModule):
             )
             model_kwargs["quantization_config"] = bnb_config
         if self.hparams.training.load_in_8bit:
-            model_kwargs["load_in_8bit"] = True
+            bnb_config = BitsAndBytesConfig(
+                load_in_8bit=True,
+            )
+            model_kwargs["quantization_config"] = bnb_config
+            # model_kwargs["load_in_8bit"] = True
 
         if self.hparams.task.task_type == "SEQ_CLS":
             LM = AutoModelForSequenceClassification
@@ -66,7 +70,7 @@ class BaseModel(LightningModule):
             self.hparams.model.hf,
             cache_dir=self.hparams.cache_dir,
             **model_kwargs,
-        )
+        ) # TODO: deepseek -> ValueError: Unknown quantization type, got fp8 - supported types are: ['awq', 'bitsandbytes_4bit', 'bitsandbytes_8bit', 'gptq', 'aqlm', 'quanto', 'eetq', 'hqq', 'fbgemm_fp8']
 
         lora_config = None
         if self.hparams.training.use_lora or self.hparams.training.use_qlora:
