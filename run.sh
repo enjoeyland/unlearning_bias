@@ -12,7 +12,7 @@ gpustat
 python -u run.py \
     -m \
     logging.progress_bar=tqdm \
-    logging.progress_bar_refresh_rate=80 \
+    logging.progress_bar_refresh_rate=160 \
     method.fit_target=retain
 
     ### regularization

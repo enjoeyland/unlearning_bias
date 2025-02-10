@@ -20,3 +20,4 @@ load_from_checkpoint: null # retained checkpoint
 # do_eval: true
 
 # python run.py task=adult_filter_grad_ascent method=grad_ascent load_from_checkpoint='.checkpoints/opt-1.3b/adult/finetune/BS32_LR0.0002_S42_retain/remove_retain_acc\=0.874-eo\=0.5791-spd\=0.2176.ckpt'
+# python run.py training.per_device_batch_size=32 training.gradient_accumulation_steps=4 task=adult_filter_grad_ascent method=grad_ascent load_from_checkpoint='.checkpoints/opt-1.3b/adult/finetune/BS256_LR0.0002_S42_retain/retain_acc\=0.854-bal_acc\=0.834-eo\=0.4912-spd\=0.2709.ckpt' training.limit_train_batches=0.02

@@ -24,8 +24,8 @@ class RegularizationModel(BaseModel):
         
         # 민감한 속성 그룹 분리
         sensitive_attribute = self.datamodule.sensitive_attribute
-        group_0 = (batch[sensitive_attribute] == False)
-        group_1 = (batch[sensitive_attribute] == True)
+        group_0 = (batch[sensitive_attribute] == 0)
+        group_1 = (batch[sensitive_attribute] == 1)
 
         # P(ŷ=1 | Y=1, A=0)
         group_0_y1 = (batch["labels"][group_0] == 1)
@@ -35,8 +35,11 @@ class RegularizationModel(BaseModel):
         group_1_y1 = (batch["labels"][group_1] == 1)
         p_y1_a1 = prob[group_1][group_1_y1].mean() if group_1_y1.sum() > 0 else torch.tensor(0.0).to(prob.device)
 
+        p_y1 = prob[batch["labels"] == 1].mean()
+
         # Equal Opportunity Difference Penalty
-        eo_penalty = self.regularization_coeff * torch.abs(p_y1_a0 - p_y1_a1)
+        eo_penalty = self.regularization_coeff * torch.abs(p_y1_a0 - p_y1)
+        eo_penalty += self.regularization_coeff * torch.abs(p_y1_a1 - p_y1)
 
         # Class balance penalty
         rho = self.datamodule.rho

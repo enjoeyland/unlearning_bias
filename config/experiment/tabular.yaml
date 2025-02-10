@@ -11,6 +11,8 @@ training:
   per_device_batch_size: 16
   gradient_accumulation_steps: 1
 
+# training.per_device_batch_size=32 training.gradient_accumulation_steps=4
+
 callbacks:
   eval_steps: 1.0
   max_tolerance: 3

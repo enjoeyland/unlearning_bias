@@ -131,7 +131,7 @@ class LayerwiseTokenTracker:
 
         axs[-1].set_xlabel("Layer")
         plt.suptitle("Layerwise Probability Changes for All Tokens in the Sentence")
-        self._save_with_versioning("images", "layerswise_token_scatter", extension="png")
+        self._save_with_versioning("images", "layerwise_token_scatter", extension="png")
         plt.clf()
     
     def heatmap_plot(self, input_ids, top_k=5):
@@ -160,7 +160,7 @@ class LayerwiseTokenTracker:
 
         axs[-1].set_xlabel("Layers")
         plt.tight_layout()
-        self._save_with_versioning("images", "layerswise_token_heatmap", extension="png")
+        self._save_with_versioning("images", "layerwise_token_heatmap", extension="png")
         plt.clf()
 
     def layerwise_probability_plot(self, input_ids):
@@ -189,7 +189,7 @@ class LayerwiseTokenTracker:
         plt.title("Layer-wise Probability Changes for Input Tokens")
         plt.xlabel("Tokens")
         plt.ylabel("Layers")
-        self._save_with_versioning("images", "layerswise_label_token_heatmap", extension="png")
+        self._save_with_versioning("images", "layerwise_label_token_heatmap", extension="png")
         plt.clf()
 
     def consecutive_jsd_heatmap(self, input_ids):
@@ -222,7 +222,7 @@ class LayerwiseTokenTracker:
         plt.title("Jensen-Shannon Divergence between Consecutive Layers")
         plt.xlabel("Tokens")
         plt.ylabel("Layer Pairs")
-        self._save_with_versioning("images", "layerswise_jsd_heatmap", extension="png")
+        self._save_with_versioning("images", "layerwise_jsd_heatmap", extension="png")
         plt.clf()
 
 import torch.nn.functional as F
