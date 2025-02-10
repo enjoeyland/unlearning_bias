@@ -52,12 +52,12 @@ class DataModuleFactory:
         
         elif task == "adult" or task == "compas":
             if method in ["grad_ascent", "grad_ascent_kd"]:
-                monitor = "valid/equal_opportunity"
+                monitor = "valid/eo"
                 mode = "min"
             else:
-                monitor = "valid/accuracy"
+                monitor = "valid/bal_acc"
                 mode = "max"
-            filename = "acc={valid/accuracy:.3f}-eo={valid/equal_opportunity:.4f}-spd={valid/spd:.4f}"
+            filename = "acc={valid/accuracy:.3f}-bal_acc={valid/bal_acc:.3f}-eo={valid/eo:.4f}-spd={valid/spd:.4f}"
         else:
             print(f"Task {task} is not setup for callbacks.")  
 

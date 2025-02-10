@@ -9,7 +9,7 @@ from datasets import load_dataset
 from collections import defaultdict, Counter
 
 from datamodules import BaseDataModule
-from metrics.classification import BinaryAccuracy, EqulityOfOpportunity, StatisticalParityDifference
+from metrics.classification import BinaryAccuracy, EqulityOfOpportunity, StatisticalParityDifference, BalancedAccuracy
 from utils import get_absolute_path
 
 @dataclass
@@ -127,13 +127,21 @@ class AdultDataModule(BaseDataModule):
         self.shuffle_features = cfg.task.shuffle_features
         
         self.metrics["_train"].update({
-            "accuracy": BinaryAccuracy(),
-            "equal_opportunity": EqulityOfOpportunity("gender", num_groups=2),
+            "accuracy": BinaryAccuracy(),            
+            "eo": EqulityOfOpportunity("gender", num_groups=2),
             "spd": StatisticalParityDifference("gender", num_groups=2),
         })
         self.metrics["_valid"].update({
             "accuracy": BinaryAccuracy(),
-            "equal_opportunity": EqulityOfOpportunity("gender", num_groups=2),
+            "bal_acc": BalancedAccuracy(),
+            "eo": EqulityOfOpportunity("gender", num_groups=2),
+            "spd": StatisticalParityDifference("gender", num_groups=2),
+        })
+
+        self.metrics["_test"].update({
+            "accuracy": BinaryAccuracy(),
+            "bal_acc": BalancedAccuracy(),
+            "eo": EqulityOfOpportunity("gender", num_groups=2),
             "spd": StatisticalParityDifference("gender", num_groups=2),
         })
 
@@ -187,6 +195,7 @@ class AdultDataModule(BaseDataModule):
                 print(f"{split=}, {gender=}, {over_threshold=}: {count}")
 
     def setup(self, stage: str):
+        super().setup(stage)
         data = defaultdict(list)
         for split in self.data_paths:
             for path in self.data_paths[split]:

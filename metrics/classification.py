@@ -57,3 +57,83 @@ class StatisticalParityDifference(classification.BinaryFairness, MetricHandler):
         preds = outputs.logits.argmax(dim=1)
         groups = batch[self.group_name]
         return self(preds, None, groups)
+
+
+class BalancedAccuracy(Metric, MetricHandler):
+    tp: Tensor
+    fp: Tensor
+    tn: Tensor
+    fn: Tensor
+
+    def __init__(self, dist_sync_on_step=False):
+        super().__init__(dist_sync_on_step=dist_sync_on_step)
+
+        self.add_state("tp", default=torch.tensor(0), dist_reduce_fx="sum")
+        self.add_state("fn", default=torch.tensor(0), dist_reduce_fx="sum")
+        self.add_state("tn", default=torch.tensor(0), dist_reduce_fx="sum")
+        self.add_state("fp", default=torch.tensor(0), dist_reduce_fx="sum")
+
+    def update(self, preds: torch.Tensor, target: torch.Tensor):
+        """
+        - preds: 모델의 예측값 (Binary: 0 또는 1)
+        - target: 실제 정답 (Binary: 0 또는 1)
+        """
+        preds = preds.int()
+        target = target.int()
+
+        self.tp += torch.sum((preds == 1) & (target == 1))
+        self.fn += torch.sum((preds == 0) & (target == 1))
+        self.tn += torch.sum((preds == 0) & (target == 0))
+        self.fp += torch.sum((preds == 1) & (target == 0))
+
+    def compute(self):
+        true_pos_rates = _safe_divide(self.tp, self.tp + self.fn)
+        true_neg_rates = _safe_divide(self.tn, self.tn + self.fp)
+        balanced_accuracies = (true_pos_rates + true_neg_rates) / 2
+        return balanced_accuracies
+
+    def on_step(self, split, outputs, batch, batch_idx, dataloader_idx=0, *args, **kwargs):
+        preds = outputs.logits.argmax(dim=1)
+        target = batch["labels"]
+        return self(preds, target)
+
+class BalancedAccuracy(Metric, MetricHandler):
+    tp: Tensor
+    fp: Tensor
+    tn: Tensor
+    fn: Tensor
+
+    def __init__(self, dist_sync_on_step=False):
+        super().__init__(dist_sync_on_step=dist_sync_on_step)
+
+        self.add_state("tp", default=torch.tensor(0), dist_reduce_fx="sum")
+        self.add_state("fn", default=torch.tensor(0), dist_reduce_fx="sum")
+        self.add_state("tn", default=torch.tensor(0), dist_reduce_fx="sum")
+        self.add_state("fp", default=torch.tensor(0), dist_reduce_fx="sum")
+
+    def update(self, preds: torch.Tensor, target: torch.Tensor):
+        """
+        - preds: 모델의 예측값 (Binary: 0 또는 1)
+        - target: 실제 정답 (Binary: 0 또는 1)
+        """
+        preds = preds.int()
+        target = target.int()
+
+        self.tp += torch.sum((preds == 1) & (target == 1))
+        self.fn += torch.sum((preds == 0) & (target == 1))
+        self.tn += torch.sum((preds == 0) & (target == 0))
+        self.fp += torch.sum((preds == 1) & (target == 0))
+
+    def compute(self):
+        true_pos_rates = _safe_divide(self.tp, self.tp + self.fn)
+        true_neg_rates = _safe_divide(self.tn, self.tn + self.fp)
+        balanced_accuracies = (true_pos_rates + true_neg_rates) / 2
+        return balanced_accuracies
+
+    def on_step(self, split, outputs, batch, batch_idx, dataloader_idx=0, *args, **kwargs):
+        if kwargs.get("preds", None) is not None:
+            preds = kwargs["preds"]
+        else:
+            preds = outputs.logits.argmax(dim=1)
+        target = batch["labels"]
+        return self(preds, target)
