@@ -12,8 +12,9 @@ gpustat
 python -u run.py \
     -m \
     logging.progress_bar=tqdm \
-    logging.progress_bar_refresh_rate=160 \
-    method.fit_target=retain
+    logging.progress_bar_refresh_rate=40 \
+    experiment=tabular_with_generation \
+    model=gpt-3.5
 
     ### regularization
     # method=regularization\

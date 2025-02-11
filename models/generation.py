@@ -85,7 +85,8 @@ class GenerationModel(BaseModel):
             preds = []
             wrong_preds = []
             for text in generated_text:
-                pred = 1 if "above threshold" in text.lower() else 0 if "below threshold" in text.lower() else -1
+                # pred = 1 if "above threshold" in text.lower() else 0 if "below threshold" in text.lower() else -1
+                pred = 1 if "greater" in text.lower() else 0 if "less" in text.lower() else -1
                 preds.append(pred)
                 if pred == -1:
                     wrong_preds.append(text)
@@ -104,7 +105,7 @@ class GenerationModel(BaseModel):
             # print(f"gender: {batch['gender']}")
             preds = torch.where(preds == -1, torch.tensor(0), preds)
         metrics.update(self.datamodule.on_step("test", outputs, batch, batch_idx, dataloader_idx, preds=preds))
-        self.log_dict(metrics, on_step=True, on_epoch=True, prog_bar=True, logger=True, batch_size=batch["labels"].size(0), sync_dist=True)
+        self.log_dict(metrics, on_step=False, on_epoch=True, prog_bar=True, logger=True, batch_size=batch["labels"].size(0), sync_dist=True)
         
 
 from langchain_openai import ChatOpenAI
@@ -115,12 +116,12 @@ class ApiModel(nn.Module):
     def __init__(self, model_name):
         super().__init__()
         self.llm = ChatOpenAI(
-            temperature=0.5,
+            temperature=0.1,
             max_tokens=2048,
             model_name=model_name,
         )
         self.chain = (
-            load_prompt(get_absolute_path("models/adult_prompt.yaml"))
+            load_prompt(get_absolute_path("models/adult_prompt_Liu.yaml"))
             | self.llm
             | StrOutputParser()
         )

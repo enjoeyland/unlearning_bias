@@ -9,7 +9,7 @@ from datasets import load_dataset
 from collections import defaultdict, Counter
 
 from datamodules import BaseDataModule
-from metrics.classification import BinaryAccuracy, EqulityOfOpportunity, StatisticalParityDifference, BalancedAccuracy
+from metrics.classification import BinaryAccuracy, EqulityOfOpportunity, StatisticalParityDifference, BalancedAccuracy, GroupAccuracy
 from utils import get_absolute_path
 
 @dataclass
@@ -180,6 +180,8 @@ class AdultDataModule(BaseDataModule):
             "bal_acc": BalancedAccuracy(),
             "eo": EqulityOfOpportunity("gender", num_groups=2),
             "spd": StatisticalParityDifference("gender", num_groups=2),
+            "male_acc": GroupAccuracy("gender", 0),
+            "female_acc": GroupAccuracy("gender", 1),
         })
 
     def prepare_data(self) -> None:

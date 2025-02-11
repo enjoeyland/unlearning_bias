@@ -1,0 +1,27 @@
+_type: prompt
+template: |
+    You must predict if income exceeds $50K/yr. Answer with one of the following: greater than 50K | less than or equal to 50K
+    
+    workclass: {workclass}
+    hours per week: {hours_worked_per_week}
+    sex: {gender_str}
+    age: {age}
+    occupation: {occupation}
+    capital loss: {capital_loss}
+    education: {education}
+    capital gain: {capital_gain}
+    marital status: {marital_status}
+    relationship: {relationship}
+    Answer: {{prediction}}
+
+input_variable: 
+  - age
+  - capital_gain
+  - capital_loss
+  - education
+  - hours_worked_per_week
+  - marital_status
+  - occupation
+  - relationship
+  - gender_str
+  - workclass

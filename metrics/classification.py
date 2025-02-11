@@ -18,6 +18,25 @@ class BinaryAccuracy(classification.BinaryAccuracy, MetricHandler):
         # return self(preds.to("cuda:0"), target.to("cuda:0")) # TODO: 큰 모델 돌릴려고 deepspeed 쓸 때 작동이 안됐던거 같다. ??? 왜 이렇게 했었지..? 작동도 안돼는데..
         return self(preds, target)
 
+class GroupAccuracy(classification.BinaryAccuracy, MetricHandler):
+    def __init__(self, group_name, group, **kwargs):
+        super().__init__(**kwargs)
+        self.group_name = group_name
+        self.group = group
+
+    def on_step(self, split, outputs, batch, batch_idx, dataloader_idx=0, *args, **kwargs):
+        if kwargs.get("preds", None) is not None:
+            preds = kwargs["preds"]
+        else:
+            preds = outputs.logits.argmax(dim=1)
+        target = batch["labels"]
+        groups = batch[self.group_name]
+
+        group_mask = groups == self.group
+        if group_mask.sum() == 0:
+            return torch.tensor(0.0)
+        return self(preds[group_mask], target[group_mask])
+
 class EqulityOfOpportunity(classification.BinaryFairness, MetricHandler):
     def __init__(self, group_name, num_groups, **kwargs):
         super().__init__(num_groups=num_groups, task="equal_opportunity", **kwargs)
