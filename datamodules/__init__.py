@@ -75,5 +75,7 @@ class DataModuleFactory:
                 filename = f"without_retain_{filename}"
             elif cfg.method.fit_target == "with_retain":
                 filename = f"with_retain_{filename}"
+        elif method == "finetune_zero_shot":
+            filename = f"{cfg.method.fit_target}_{filename}"
         
         return monitor, mode, filename

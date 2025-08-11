@@ -5,7 +5,7 @@ from .in_process import RegularizationModel, AdversarialRepresentationModel
 from .layerwise_analysis import LayerwiseAnalyzerModel
 from .influence_func import ReviewWrongAnswerModel
 from .resample import ResampleModel
-from .generation import GenerationModel
+from .generation import GenerationModel, PredictionDatasetSaver
 
 class ModelFactory:
     def __init__(self, cfg):
@@ -19,12 +19,15 @@ class ModelFactory:
             'layerwise_analysis': LayerwiseAnalyzerModel,
             'review_wrong': ReviewWrongAnswerModel,
             'resample': ResampleModel,
-            'zero_shot': GenerationModel,
+            'find_prediction_dataset': PredictionDatasetSaver,
         }
     def get_model_class(self):
         method_name = self.cfg.method.name
         if method_name in self._model_builders:
             return self._model_builders[method_name]
+        elif self.cfg.task.name in ["adult", "compas"] and self.cfg.task.task_type == "CAUSAL_LM":
+            # zero_shot, finetune_zero_shot, negtaskvector
+            return GenerationModel
         return BaseModel
     
     def create_model(self):

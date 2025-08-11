@@ -59,7 +59,6 @@ class AdultDataset(Dataset):
     def __getitem__(self, idx):
         item = self.data[idx]
         result = {
-            'labels': torch.tensor(item['over_threshold']),
             # 'sensitive_labels': torch.tensor(item['gender']),
             'gender_str': AdultData.gender_map(item['gender']),
             'idx': idx,
@@ -81,7 +80,17 @@ class AdultDataset(Dataset):
                 'input_ids': inputs['input_ids'].squeeze(),
                 'attention_mask': inputs['attention_mask'].squeeze(),
             })
-            
+            if self.is_prompt:
+                labels = inputs['input_ids'].clone()
+                labels[labels == self.tokenizer.pad_token_id] = -100
+
+                result.update({
+                    'labels': labels.squeeze(),
+                })
+            else:
+                result.update({
+                    'labels': torch.tensor(item['over_threshold']),
+                })
         return result 
 
     def get_prompt(self, item):
@@ -113,6 +122,8 @@ class AdultDataset(Dataset):
             # text +="\n## Answer\nIncome is "
         else:
             text += "\nIs income over $50k?"
+        if self.is_prompt and (self.split == "train" or self.split == "valid"):
+            text += "Above Threshold" if item["over_threshold"] else "Below Threshold"
         return text
 
 
@@ -122,6 +133,7 @@ class AdultDataModule(BaseDataModule):
     num_classes = 2 # income >= 50k$ or not
     num_sensitive_classes = 2 # male or female
     sensitive_attribute = "gender"
+    target_attr = "over_threshold"
     # split='train', gender=male, over_threshold=0: 17048
     # split='train', gender=male, over_threshold=1: 7419
     # split='train', gender=female, over_threshold=0: 10818
@@ -161,7 +173,7 @@ class AdultDataModule(BaseDataModule):
 
         self.remove_features = cfg.task.remove_features
         self.shuffle_features = cfg.task.shuffle_features
-        self.is_prompt = cfg.method.fit_target == "prompt"
+        self.is_prompt = cfg.task.task_type == "CAUSAL_LM"
 
         self.metrics["_train"].update({
             "accuracy": BinaryAccuracy(),            
@@ -173,6 +185,8 @@ class AdultDataModule(BaseDataModule):
             "bal_acc": BalancedAccuracy(),
             "eo": EqulityOfOpportunity("gender", num_groups=2),
             "spd": StatisticalParityDifference("gender", num_groups=2),
+            "male_acc": GroupAccuracy("gender", 0),
+            "female_acc": GroupAccuracy("gender", 1),
         })
 
         self.metrics["_test"].update({
