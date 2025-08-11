@@ -1,3 +1,5 @@
+import torch
+
 from torch.nn import ModuleDict, Module
 from lightning import LightningDataModule
 from typing import Literal
@@ -11,7 +13,7 @@ class MetricHandler:
 class MetricDataModule(LightningDataModule, MetricHandler):
     def __init__(self):
         super().__init__()
-        self.metrics: Module = ModuleDict({
+        self.metrics: ModuleDict = ModuleDict({
             "_train": ModuleDict(),
             "_valid": ModuleDict(),
             "_test": ModuleDict(),

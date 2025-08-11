@@ -9,14 +9,10 @@ from .metric_base import MetricHandler
 
 class BinaryAccuracy(classification.BinaryAccuracy, MetricHandler):
     def on_step(self, split, outputs, batch, batch_idx, dataloader_idx=0, *args, **kwargs):
-        if kwargs.get("preds", None) is not None:
-            preds = kwargs["preds"]
-        else:
-            preds = outputs.logits.argmax(dim=1)
-        target = batch["labels"]
-        # print("device:",preds.device, target.device)
-        # return self(preds.to("cuda:0"), target.to("cuda:0")) # TODO: 큰 모델 돌릴려고 deepspeed 쓸 때 작동이 안됐던거 같다. ??? 왜 이렇게 했었지..? 작동도 안돼는데..
-        return self(preds, target)
+        preds = kwargs.get("preds", outputs.logits.argmax(dim=1))
+        target = kwargs.get("target", batch["labels"])
+        self(preds, target)
+        return self
 
 class GroupAccuracy(classification.BinaryAccuracy, MetricHandler):
     def __init__(self, group_name, group, **kwargs):
@@ -25,17 +21,15 @@ class GroupAccuracy(classification.BinaryAccuracy, MetricHandler):
         self.group = group
 
     def on_step(self, split, outputs, batch, batch_idx, dataloader_idx=0, *args, **kwargs):
-        if kwargs.get("preds", None) is not None:
-            preds = kwargs["preds"]
-        else:
-            preds = outputs.logits.argmax(dim=1)
-        target = batch["labels"]
+        preds = kwargs.get("preds", outputs.logits.argmax(dim=1))
+        target = kwargs.get("target", batch["labels"])
         groups = batch[self.group_name]
 
         group_mask = groups == self.group
         if group_mask.sum() == 0:
-            return torch.tensor(0.0)
-        return self(preds[group_mask], target[group_mask])
+            return None
+        self(preds[group_mask], target[group_mask])
+        return self
 
 class EqulityOfOpportunity(classification.BinaryFairness, MetricHandler):
     def __init__(self, group_name, num_groups, **kwargs):
@@ -47,46 +41,40 @@ class EqulityOfOpportunity(classification.BinaryFairness, MetricHandler):
         min_pos_rate_id = torch.argmin(true_pos_rates)
         max_pos_rate_id = torch.argmax(true_pos_rates)
 
+        if (self.tp[max_pos_rate_id] + self.fn[max_pos_rate_id] + self.tn[max_pos_rate_id] + self.fp[max_pos_rate_id]) >= 128:
+            print(f"EoO: tp: {self.tp}, fn: {self.fn}, tn: {self.tn}, fp: {self.fp}")
+
         return true_pos_rates[max_pos_rate_id] - true_pos_rates[min_pos_rate_id]
 
     def on_step(self, split, outputs, batch, batch_idx, dataloader_idx=0, *args, **kwargs):
-        if kwargs.get("preds", None) is not None:
-            preds = kwargs["preds"]
-        else:
-            preds = outputs.logits.argmax(dim=1)
-        target = batch["labels"]
+        preds = kwargs.get("preds", outputs.logits.argmax(dim=1))
+        target = kwargs.get("target", batch["labels"])
         groups = batch[self.group_name]
-        # print(f"preds: {preds}, target: {target}, groups: {groups}")
-        return self(preds, target, groups)
+        # print(f"EoO: preds: {preds}, target: {target}, groups: {groups}")
+        self(preds, target, groups)
+        return self
 
 class StatisticalParityDifference(classification.BinaryFairness, MetricHandler):
     def __init__(self, group_name, num_groups, **kwargs):
         super().__init__(num_groups=num_groups, task="demographic_parity", **kwargs)
         self.group_name = group_name
 
-    def update(self, preds, target, groups):
-        target = torch.zeros(preds.shape, device=preds.device)
-
-        group_stats = _binary_groups_stat_scores(
-            preds, target, groups, self.num_groups, self.threshold, self.ignore_index, self.validate_args
-        )
-
-        self._update_states(group_stats)
-
     def compute(self):
         pos_rates = _safe_divide(self.tp + self.fp, self.tp + self.fp + self.tn + self.fn)
         min_pos_rate_id = torch.argmin(pos_rates)
         max_pos_rate_id = torch.argmax(pos_rates)
 
+        if (self.tp[max_pos_rate_id] + self.fn[max_pos_rate_id] + self.tn[max_pos_rate_id] + self.fp[max_pos_rate_id]) >= 128:
+            print(f"SPD: tp: {self.tp}, fn: {self.fn}, tn: {self.tn}, fp: {self.fp}")
+
         return pos_rates[max_pos_rate_id] - pos_rates[min_pos_rate_id]
 
     def on_step(self, split, outputs, batch, batch_idx, dataloader_idx=0, *args, **kwargs):
-        if kwargs.get("preds", None) is not None:
-            preds = kwargs["preds"]
-        else:
-            preds = outputs.logits.argmax(dim=1)
+        preds = kwargs.get("preds", outputs.logits.argmax(dim=1))
         groups = batch[self.group_name]
-        return self(preds, None, groups)
+        # print(f"SPD: preds: {preds}, groups: {groups}")
+        self(preds, None, groups)
+        return self
 
 
 class BalancedAccuracy(Metric, MetricHandler):
@@ -123,9 +111,7 @@ class BalancedAccuracy(Metric, MetricHandler):
         return balanced_accuracies
 
     def on_step(self, split, outputs, batch, batch_idx, dataloader_idx=0, *args, **kwargs):
-        if kwargs.get("preds", None) is not None:
-            preds = kwargs["preds"]
-        else:
-            preds = outputs.logits.argmax(dim=1)
-        target = batch["labels"]
-        return self(preds, target)
+        preds = kwargs.get("preds", outputs.logits.argmax(dim=1))
+        target = kwargs.get("target", batch["labels"])
+        self(preds, target)
+        return self
