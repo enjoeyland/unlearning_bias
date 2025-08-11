@@ -19,9 +19,10 @@ class Callbacks:
             self.every_n_epochs = 1
 
         self.monitor, self.mode, self.filename = DataModuleFactory.configure_callbacks_monitor(cfg)
+        self.model_checkpoint = None
 
     def get_checkpoint_callback(self):
-        return ModelCheckpoint(
+        self.model_checkpoint = ModelCheckpoint(
             monitor=self.monitor,
             mode=self.mode,
             save_top_k=1,
@@ -33,6 +34,7 @@ class Callbacks:
             auto_insert_metric_name=False,
             every_n_epochs=self.every_n_epochs,
         )
+        return self.model_checkpoint
     
     def get_early_stopping(self):
         if self.max_tolerance == 0 or self.max_tolerance is None:
@@ -52,6 +54,11 @@ class Callbacks:
         return EarlyStopStepCallback(
             stop_step=self.stop_step
         )
+
+    def get_ckpt_path(self):
+        if not self.model_checkpoint:
+            return None
+        return self.model_checkpoint._last_checkpoint_saved
 
 class EarlyStopStepCallback(Callback):
     def __init__(self, stop_step):

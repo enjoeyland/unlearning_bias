@@ -2,6 +2,7 @@ srun_sbatch.sh
 lightning_logs/
 wandb/
 .checkpoints/
+.checkpoints_scratch2
 .logs/
 sandbox/
 images/layerwise*.png

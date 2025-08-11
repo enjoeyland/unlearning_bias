@@ -159,76 +159,46 @@ def get_model(ckpt):
         model = ckpt
     return model
 
-def select_ckpts(cfg):
+def select_ckpt(cfg, target):
     from glob import glob
     from pathlib import Path
 
+    assert target in cfg.method.trained_models, f"{target} model not found in config."
+
+    target_cfg = cfg.method.trained_models[target]
+    
     def ckpt_metrics(ckpt):
         ckpt = ckpt.split("/")[-1]
-        if cfg.method.keywords:
-            for keyword in cfg.method.keywords:
-                if keyword in ckpt:
-                    break
-            else:
-                print(f"Keyword {keyword} not found.")
-                if cfg.method.mode == "min":
-                    return float("inf")
-                else:
-                    return float("-inf")
-
-        if cfg.method.metric in ckpt:
+        if target_cfg.metric in ckpt:
             for item in ckpt.split(".ckpt")[0].split("_")[-1].split("-"):
-                if cfg.method.metric in item:
-                    return float(item.split(f"{cfg.method.metric}=")[-1])
+                if target_cfg.metric in item:
+                    return float(item.split(f"{target_cfg.metric}=")[-1])
         else:
-            print(f"Metric {cfg.method.metric} not found.")
-            if cfg.method.mode == "min":
-                return float("inf")
-            else:
-                return float("-inf")
-        
-    forget_ckpt = None
-    forget_ckpt_metrics = ""
-    if cfg.method.forget_scaling_coef != 0:
-        if cfg.method.load_ckpts.forget:
-            forget_ckpt = str(Path(cfg.method.load_dir.forget) / cfg.method.load_ckpts.forget)
+            print(f"Metric {target_cfg.metric} not found.")
+            return float("inf") if target_cfg.mode == "min" else float("-inf")
+
+    ckpt = None
+    ckpt_metrics_value = ""
+    if target_cfg.scaling_coef != 0:
+        if target_cfg.load_ckpt:
+            ckpt = target_cfg.load_ckpt
         else:
-            saved_forget_ckpt = glob(f"{cfg.method.load_dir.forget}/*.ckpt")
-            forget_ckpt = [item for item in saved_forget_ckpt if "forget" in item.split("/")[-1]]
+            saved_ckpt = glob(f"{target_cfg.load_dir}/*.ckpt")
+            ckpt = [item for item in saved_ckpt if target in item.split("/")[-1]]
 
             try:
-                forget_ckpt = sorted(forget_ckpt, key=ckpt_metrics)[0 if cfg.method.mode == "min" else -1]
+                ckpt = sorted(ckpt, key=ckpt_metrics)[0 if target_cfg.mode == "min" else -1]
             except IndexError:
-                print(forget_ckpt)
-                raise FileNotFoundError(f"Forget ckpt not found in {cfg.method.load_dir.forget}")
+                print(ckpt)
+                raise FileNotFoundError(f"{target.capitalize()} ckpt not found in {target_cfg.load_dir}")
             except ValueError as e:
-                print(forget_ckpt)
+                print(ckpt)
                 raise e
-        print(f"Selected forget ckpt: {forget_ckpt.split('/')[-1]}")
-        forget_ckpt_metrics = forget_ckpt.split("/")[-1].split(".ckpt")[0].split("_")[-1]
 
-    retain_ckpt = None
-    retain_ckpt_metrics = ""
-
-    if cfg.method.retain_scaling_coef != 0:
-        if cfg.method.load_ckpts.retain:
-            retain_ckpt = str(Path(cfg.method.load_dir.retain) / cfg.method.load_ckpts.retain)
-        else:
-            saved_retain_ckpt = glob(f"{cfg.method.load_dir.retain}/*.ckpt")
-            retain_ckpt = [item for item in saved_retain_ckpt if f"retain" in item.split("/")[-1]]
-            assert retain_ckpt, f"Retain ckpt not found in {cfg.method.load_dir.retain}"
-            try:
-                retain_ckpt = sorted(retain_ckpt, key=ckpt_metrics)[0 if cfg.method.mode == "min" else -1]
-            except IndexError:
-                print(retain_ckpt)
-                raise FileNotFoundError(f"Retain ckpt not found in {cfg.method.load_dir.retain}")
-            except ValueError as e:
-                print(retain_ckpt)
-                print(e)
-        print(f"Selected retain ckpt: {retain_ckpt.split('/')[-1]}")
-        retain_ckpt_metrics = retain_ckpt.split("/")[-1].split(".ckpt")[0].split("_")[-1]
+        print(f"Selected {target} ckpt: {ckpt.split('/')[-1]}")
+        ckpt_metrics_value = ckpt.split("/")[-1].split(".ckpt")[0].split("_")[-1]
     
-    return forget_ckpt, retain_ckpt, forget_ckpt_metrics, retain_ckpt_metrics
+    return ckpt, ckpt_metrics_value
 
 def get_absolute_path(path):
     from pathlib import Path
