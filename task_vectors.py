@@ -18,7 +18,9 @@ class TaskVector():
                 finetuned_state_dict = get_state_dict(finetuned_checkpoint)
 
                 self.vector = {}
-                print("Warning: Missing keys in finetuned_state_dict:", set(pretrained_state_dict.keys()) - set(finetuned_state_dict.keys()))
+                if set(pretrained_state_dict.keys()) != set(finetuned_state_dict.keys()):
+                    print("Warning: Missing keys in finetuned_state_dict:", sorted(set(pretrained_state_dict.keys()) - set(finetuned_state_dict.keys()))[:10])
+                
                 for key in pretrained_state_dict:
                     if pretrained_state_dict[key].dtype in [torch.int64, torch.uint8]:
                         continue
@@ -38,7 +40,7 @@ class TaskVector():
                         lora_vector = (finetuned_state_dict[pair[1]] @ finetuned_state_dict[pair[0]]) - (pretrained_state_dict[pair[1]] @ pretrained_state_dict[pair[0]])
                         prefix = pair[0].split("lora_A")[0].strip(".")
                         for key in self.vector:
-                            if key.startswith(prefix) and key.endswith("weight"):
+                            if key.startswith(prefix) and key.endswith("base_layer.weight"):
                                 self.vector[key] += lora_vector
                                 break
                         else:
@@ -52,7 +54,8 @@ class TaskVector():
         if isinstance(other, TaskVector):
             with torch.no_grad():
                 new_vector = {}
-                print("Warning: Missing keys in other task vector:", set(self.vector.keys()) - set(other.vector.keys()))
+                if set(self.vector.keys()) - set(other.vector.keys()) != set():
+                    print("Warning: Missing keys in other task vector:", set(self.vector.keys()) - set(other.vector.keys()))
                 for key in self.vector:
                     if key not in other.vector:
                         continue
@@ -62,7 +65,8 @@ class TaskVector():
         elif isinstance(other, torch.nn.Module):
             model_state_dict = get_state_dict(other)
             with torch.no_grad():
-                print("Warning: Missing keys in finetuned_state_dict:", set(self.vector.keys()) - set(model_state_dict.keys()))
+                if set(self.vector.keys()) - set(model_state_dict.keys()) != set():
+                    print("Warning: Missing keys in finetuned_state_dict:", set(self.vector.keys()) - set(model_state_dict.keys()))
                 for key in self.vector:
                     if key not in model_state_dict:
                         continue
@@ -154,28 +158,50 @@ class TaskVector():
                     continue
                 self.vector[key] /= torch.norm(self.vector[key])
         return self
-        
 
-def create_model_from_ckpt(cfg, pretraind_model, forget_ckpt, retain_ckpt, forget_ckpt_metrics="", retain_ckpt_metrics=""):
+def create_model_from_ckpt(cfg, pretraind_model, trained_model_infos):
+    """
+    Trained model 정보를 받아서 Task Vector를 적용한 모델을 생성.
+    Args:
+        cfg: Hydra config
+        pretraind_model: 원본 모델
+        trained_model_infos: [(name, ckpt, ckpt_metrics)]
+    Returns:
+        업데이트된 모델
+    """
     model = pretraind_model
     model_name = "negtv"
-    if forget_ckpt:
-        forget_tv = TaskVector(pretraind_model, forget_ckpt)
+
+    task_vectors = {}
+
+    # 모든 trained model에 대해 Task Vector 생성
+    for target, ckpt, ckpt_metrics in trained_model_infos:
+        target_cfg = cfg.method.trained_models[target]
+        task_vector = TaskVector(pretraind_model, ckpt)
+
         if cfg.method.normalize:
-            forget_tv = forget_tv.normalize()
-        model_name += f"-fs{cfg.method.forget_scaling_coef}_{forget_ckpt_metrics}"    
-    if retain_ckpt:
-        retain_tv = TaskVector(pretraind_model, retain_ckpt)
-        if cfg.method.normalize:
-            retain_tv = retain_tv.normalize()
-        model_name += f"-rs{cfg.method.retain_scaling_coef}_{retain_ckpt_metrics}"
-    if forget_ckpt and retain_ckpt and cfg.method.make_perpendicular:
-        forget_tv = forget_tv.make_perpendicular(retain_tv)
+            task_vector = task_vector.normalize()
+        
+        task_vectors[target] = task_vector
+        model_name += f"-{target[0]}s{target_cfg.scaling_coef}_{ckpt_metrics}"
+    
+    # Perpendicular 적용 (forget vs retain)
+    if "forget" in task_vectors and "retain" in task_vectors and cfg.method.make_perpendicular:
+        task_vectors["forget"] = task_vectors["forget"].make_perpendicular(task_vectors["retain"])
         model_name += "-perp"
-    if forget_ckpt:
-        model -= cfg.method.forget_scaling_coef * forget_tv
-    if retain_ckpt:
-        model += cfg.method.retain_scaling_coef * retain_tv
+
+    # Task Vector 적용
+    for target, task_vector in task_vectors.items():
+        target_cfg = cfg.method.trained_models[target]
+        operation = target_cfg.operation
+        scaling_coef = target_cfg.scaling_coef
+
+        if operation == "subtract":
+            model -= scaling_coef * task_vector
+        elif operation == "add":
+            model += scaling_coef * task_vector
+        else:
+            raise ValueError(f"Unsupported operation '{operation}' for {target}")
 
     # TODO: 뭐가 다르지? 그래도 안돼네...    
     # model_state_dict = get_state_dict(model)
@@ -185,13 +211,16 @@ def create_model_from_ckpt(cfg, pretraind_model, forget_ckpt, retain_ckpt, forge
 
     # print(f"Equivalence of the model: {eq_model(model, retain_ckpt)}, forget_coefficient: {cfg.method.forget_scaling_coef}, retain_coefficient: {cfg.method.retain_scaling_coef}")
     # exit()
+
     if cfg.method.save_model:
         import os
         model_path = f"{cfg.output_dir}/{model_name}.ckpt"
         if not os.path.exists(model_path):
             import torch
             torch.save(model, model_path)
+
     return model
+
 
 def eq_model(no_lora_model, lora_model):
     no_lora_model_state_dict = get_state_dict(no_lora_model)
