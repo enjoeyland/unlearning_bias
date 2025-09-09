@@ -1,0 +1,37 @@
+275815 finetuning 다시 확인용 female acc, male acc
+275820 fp0 load_ckpts X 
+275821 fp1 load_ckpts X 
+275822 tp load_ckpts X 
+# load_ckpts부터 학습하면 정확도가 너무 높아서 학습이 안되고 있음
+
+277210 0
+277219 0.6
+277220 0.8
+277222 1
+276802 재학습
+276805 그냥 확인용
+
+model.base_model.model.score.modules_to_save.default.weight
+tensor([[ 0.0044,  0.0464, -0.0033,  ...,  0.0276, -0.0559, -0.0173],
+        [-0.0097,  0.0130,  0.0030,  ...,  0.0038,  0.0060, -0.0256]],
+       device='cuda:0')
+tensor([[ 0.0044,  0.0464, -0.0033,  ...,  0.0276, -0.0559, -0.0173],
+        [-0.0097,  0.0130,  0.0030,  ...,  0.0038,  0.0060, -0.0256]],
+       device='cuda:0')
+
+
+===수정한 metric===
+
+289152 finetune
+290445 find_prediction_dataset
+290650 true_pred
+290662 false_pred
+290711 false_pred_0 -> 에러남: 왜??
+        File "/home/khmin1104/.anaconda3/lib/python3.12/csv.py", line 167, in writerows
+        return self.writer.writerows(map(self._dict_to_list, rowdicts))
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        File "/home/khmin1104/.anaconda3/lib/python3.12/csv.py", line 159, in _dict_to_list
+        raise ValueError("dict contains fields not in fieldnames: "
+        ValueError: dict contains fields not in fieldnames: 'valid/female_acc'
+290712 false_pred_1
+290956 false_pred_0

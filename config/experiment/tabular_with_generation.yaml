@@ -6,14 +6,14 @@ defaults:
   - /prompt: zero_shot
 
 training:
-  # use_lora: true
-  world_size: 1
-  per_device_batch_size: 8
-  gradient_accumulation_steps: 1
+  bf16: false
+  world_size: 2
+  per_device_batch_size: 16
+  gradient_accumulation_steps: 4
 
 do_train: false
-do_eval: false
-do_test: true
+do_eval: true
+do_test: false
 
-# python run.py -m experiment=tabular_with_generation
-# python run.py -m experiment=tabular_with_generation model=llama3-8b do_eval=true do_test=false 
+# python run.py experiment=tabular_with_generation
+# python run.py -m experiment=tabular_with_generation model=llama3-8b do_eval=true do_test=false # LastTokenModel을 써야 됌

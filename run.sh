@@ -3,8 +3,9 @@
 #SBATCH --gres=gpu:2
 #SBATCH --output=outputs/output_%j.log
 #SBATCH --time 6:00:00
-date=`date +%Y-%m-%d`
-time=`date +%H-%M-%S`
+start_date=`date +%Y-%m-%d`
+start_time=`date +%H-%M-%S`
+echo "Job started at $start_date $start_time"
 
 gpustat
 
@@ -13,8 +14,18 @@ python -u run.py \
     -m \
     logging.progress_bar=tqdm \
     logging.progress_bar_refresh_rate=40 \
-    experiment=tabular_with_generation \
-    model=gpt-3.5
+    training.bf16=false \
+    training.world_size=4 \
+    training.per_device_batch_size=8 \
+    training.gradient_accumulation_steps=1 \
+
+
+    # 13658/24576 bf16 속도가 빠르다 6:14
+    # 13110/24576 fp32 속도가 느리다(tonser core 미사용) window2 15:50 / window1 22:00 / window4 6:30 역시 좋아 
+    # 13110/24576 fp32 속도가 조금 빨라짐(tonser core 사용) 10:04
+
+    # experiment=tabular_with_generation \
+    # model=gpt-3.5
 
     ### regularization
     # method=regularization\
@@ -57,5 +68,7 @@ python -u run.py \
     # task=crows_pairs \
     # model=opt-6.7b \
 
-
-mv ./outputs/output_$SLURM_JOB_ID.log ./outputs/${SLURM_JOB_ID}_${date}_${time}_output.log
+end_date=`date +%Y-%m-%d`
+end_time=`date +%H-%M-%S`
+echo "Job finished at $end_date $end_time"
+mv ./outputs/output_$SLURM_JOB_ID.log ./outputs/${SLURM_JOB_ID}_${start_date}_${start_time}_output.log

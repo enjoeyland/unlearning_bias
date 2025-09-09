@@ -1,0 +1,23 @@
+# @package _global_
+method:
+  name: find_prediction_dataset
+  fit_target: true_pred  # options: [prompt, true_pred, false_pred_0, false_pred_1]
+  run_name: BS${training.train_batch_size}_P${method.name}_S${training.seed}
+
+training:
+  use_lora: true
+  world_size: 1
+  per_device_batch_size: 16
+  gradient_accumulation_steps: 8
+
+do_train: false
+do_eval: true
+do_test: false
+load_from_checkpoint: '.checkpoints_scratch2/llama3.1-8b-instruct/adult/finetune_zero_shot/BS128_Pfinetune_zero_shot_S42/prompt_acc=0.854-bal_acc=0.836-eo=0.0652-spd=0.2504.ckpt'
+
+task:
+  data_path:
+    train: data/adult_train_retain.json
+    valid: data/adult_train_retain.json
+
+# python run.py -m experiment=tabular_with_generation prompt=find_prediction_dataset

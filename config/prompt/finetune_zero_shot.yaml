@@ -1,0 +1,39 @@
+# @package _global_
+method:
+  name: finetune_zero_shot
+  fit_target: prompt  # options: [prompt, true_pred, false_pred, false_pred_0, false_pred_1]
+  run_name: BS${training.train_batch_size}_P${method.name}_S${training.seed}
+
+training:
+  use_lora: true
+  world_size: 2
+  per_device_batch_size: 4
+  gradient_accumulation_steps: 16
+
+callbacks:
+  eval_steps: 0.2
+  max_tolerance: 3
+
+do_train: true
+do_eval: false
+do_test: false
+output_dir: .checkpoints_scratch2/${model.name}/${task.name}/${method.name}/${method.run_name}
+
+# python run.py -m experiment=tabular_with_generation prompt=finetune_zero_shot
+# python run.py -m experiment=tabular_with_generation prompt=finetune_zero_shot do_train=false do_test=true load_from_checkpoint='.checkpoints/llama3.1-8b-instruct/adult/finetune_zero_shot/BS128_Pfinetune_zero_shot_S42/acc\=0.860-bal_acc\=0.430-eo\=0.1394-spd\=0.1790.ckpt' training.world_size=1 training.per_device_batch_size=16 training.gradient_accumulation_steps=8
+# python run.py -m experiment=tabular_with_generation prompt=finetune_zero_shot model=llama3-8b do_train=false do_eval=true do_test=false training.world_size=1 training.per_device_batch_size=8 training.gradient_accumulation_steps=1
+
+# funetune에서 부터 다시 학습
+# OK python run.py experiment=tabular_with_generation prompt=finetune_zero_shot method.fit_target=false_pred_1 task.data_path.train=data/adult_train_false_pred_1.json task.data_path.valid=data/adult_train_false_pred_1.json callbacks.eval_steps=0.5 load_from_checkpoint='.checkpoints/llama3.1-8b-instruct/adult/finetune_zero_shot/BS128_Pfinetune_zero_shot_S42/acc\=0.860-bal_acc\=0.430-eo\=0.1394-spd\=0.1790.ckpt' training.world_size=1 training.gradient_accumulation_steps=128
+# OK python run.py experiment=tabular_with_generation prompt=finetune_zero_shot method.fit_target=false_pred_0 task.data_path.train=data/adult_train_false_pred_0_label_flip.json task.data_path.valid=data/adult_train_false_pred_0_label_flip.json callbacks.eval_steps=0.5 load_from_checkpoint='.checkpoints/llama3.1-8b-instruct/adult/finetune_zero_shot/BS128_Pfinetune_zero_shot_S42/acc\=0.860-bal_acc\=0.430-eo\=0.1394-spd\=0.1790.ckpt' training.world_size=1 training.gradient_accumulation_steps=128
+# OK python run.py experiment=tabular_with_generation prompt=finetune_zero_shot method.fit_target=false_pred_1 task.data_path.train=data/adult_train_false_pred_1_label_flip.json task.data_path.valid=data/adult_train_false_pred_1_label_flip.json callbacks.eval_steps=0.5 load_from_checkpoint='.checkpoints/llama3.1-8b-instruct/adult/finetune_zero_shot/BS128_Pfinetune_zero_shot_S42/acc\=0.860-bal_acc\=0.430-eo\=0.1394-spd\=0.1790.ckpt' training.world_size=1 training.gradient_accumulation_steps=128
+# OK python run.py experiment=tabular_with_generation prompt=finetune_zero_shot method.fit_target=true_pred task.data_path.train=data/adult_train_true_pred.json task.data_path.valid=data/adult_valid_retain.json callbacks.eval_steps=0.1 load_from_checkpoint='.checkpoints/llama3.1-8b-instruct/adult/finetune_zero_shot/BS128_Pfinetune_zero_shot_S42/acc\=0.860-bal_acc\=0.430-eo\=0.1394-spd\=0.1790.ckpt' training.world_size=1 training.gradient_accumulation_steps=128
+
+# python run.py experiment=tabular_with_generation prompt=finetune_zero_shot do_train=false do_eval=true load_from_checkpoint='.checkpoints_scratch2/llama3.1-8b-instruct/adult/finetune_zero_shot/BS128_Pfinetune_zero_shot_S42/prompt_acc\=0.851-bal_acc\=0.788-eo\=0.6660-spd\=0.2281.ckpt' training.world_size=1 training.per_device_batch_size=16 training.gradient_accumulation_steps=8
+# python run.py experiment=tabular_with_generation prompt=finetune_zero_shot method.fit_target=true_pred task.data_path.valid=data/adult_train_true_pred.json do_train=false do_eval=true load_from_checkpoint='.checkpoints_scratch2/llama3.1-8b-instruct/adult/finetune_zero_shot/BS128_Pfinetune_zero_shot_S42/true_pred_acc\=1.000-bal_acc\=0.500-eo\=0.1576-spd\=0.1576.ckpt' training.world_size=1 training.per_device_batch_size=16 training.gradient_accumulation_steps=8
+
+# python run.py experiment=tabular_with_generation prompt=finetune_zero_shot method.fit_target=false_pred_0 task.data_path.train=data/adult_train_false_pred_0_label_flip.json task.data_path.valid=data/adult_train_false_pred_0_label_flip.json callbacks.eval_steps=0.5 training.world_size=1 training.gradient_accumulation_steps=128
+# python run.py experiment=tabular_with_generation prompt=finetune_zero_shot method.fit_target=false_pred_1 task.data_path.train=data/adult_train_false_pred_1_label_flip.json task.data_path.valid=data/adult_train_false_pred_1_label_flip.json callbacks.eval_steps=0.5 training.world_size=1 training.gradient_accumulation_steps=128
+# python run.py experiment=tabular_with_generation prompt=finetune_zero_shot method.fit_target=true_pred task.data_path.train=data/adult_train_true_pred.json task.data_path.valid=data/adult_valid_retain.json callbacks.eval_steps=0.1 training.world_size=1 training.gradient_accumulation_steps=128
+
+# python run.py experiment=tabular_with_generation prompt=finetune_zero_shot method.fit_target=false_pred_1 task.data_path.train=data/adult_train_false_pred_1_label_flip.json task.data_path.valid=data/adult_train_false_pred_1_label_flip.json training.world_size=1 training.per_device_batch_size=16 training.gradient_accumulation_steps=8 load_from_checkpoint='.checkpoints_scratch2/llama3.1-8b-instruct/adult/finetune_zero_shot/BS128_Pfinetune_zero_shot_S42/false_pred_1_acc\=1.000-bal_acc\=0.500-eo\=0.1127-spd\=0.1127.ckpt' do_train=false do_eval=true

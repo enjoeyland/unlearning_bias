@@ -1,0 +1,49 @@
+# @package _global_
+method:
+  name: negtaskvector
+  fit_target: retain  # options: [forget, retain]
+  run_name: BS${training.train_batch_size}_P${method.name}_S${training.seed}
+
+  trained_models:
+    false_pred_0:
+      operation: subtract # options: [subtract, add]
+      scaling_coef: 0.1
+      load_ckpt: .checkpoints_scratch2/llama3.1-8b-instruct/adult/finetune_zero_shot/BS128_Pfinetune_zero_shot_S42/false_pred_0_acc=1.000-bal_acc=1.000-eo=1.0000-spd=0.2878-v1.ckpt
+      load_dir: null
+      metric: null
+      mode: null
+
+    false_pred_1:
+      operation: subtract
+      scaling_coef: 0.1
+      load_ckpt: .checkpoints_scratch2/llama3.1-8b-instruct/adult/finetune_zero_shot/BS128_Pfinetune_zero_shot_S42/false_pred_1_acc=1.000-bal_acc=1.000-eo=1.0000-spd=0.1127.ckpt
+      load_dir: null
+      metric: null
+      mode: null
+
+    true_pred:
+      operation: add
+      scaling_coef: 1
+      load_ckpt: .checkpoints_scratch2/llama3.1-8b-instruct/adult/finetune_zero_shot/BS128_Pfinetune_zero_shot_S42/true_pred_acc=1.000-bal_acc=1.000-eo=0.0000-spd=0.1655.ckpt
+      load_dir: null
+      metric: null
+      mode: null
+
+  keywords: []
+  save_model: false
+  normalize: false
+  make_perpendicular: false
+
+load_from_checkpoint: .checkpoints/llama3.1-8b-instruct/adult/finetune_zero_shot/BS128_Pfinetune_zero_shot_S42/prompt_acc=0.860-bal_acc=0.430-eo=0.1394-spd=0.1790.ckpt
+do_train: false
+do_eval: true
+do_test: false
+
+training:
+  use_lora: true
+  world_size: 1
+  per_device_batch_size: 16
+  gradient_accumulation_steps: 8
+
+# python run.py experiment=tabular_with_generation prompt=negtaskvector_zero_shot 
+# python run.py experiment=tabular_with_generation prompt=negtaskvector_zero_shot method.trained_models.false_pred_0.scaling_coef=0

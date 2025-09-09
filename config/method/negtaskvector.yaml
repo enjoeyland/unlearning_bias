@@ -2,15 +2,26 @@
 method:
   name: negtaskvector
   fit_target: forget  # options: [forget, retain]
-  forget_scaling_coef: 1
-  retain_scaling_coef: 0
   run_name: BS${training.train_batch_size}_LR${training.learning_rate}_S${training.seed}
-  load_from:
-    forget: .checkpoints/${model.name}/${task.name}/finetune/${method.run_name}_forget
-    retain: .checkpoints/${model.name}/${task.name}/finetune/${method.run_name}_retain
+  
+  trained_models:
+    forget:
+      operation: subtract # options: [subtract, add]
+      scaling_coef: 1
+      load_ckpt: null
+      load_dir: .checkpoints/${model.name}/${task.name}/finetune/${method.run_name}_forget
+      metric: bias_score
+      mode: max
+
+    retain:
+      operation: add
+      scaling_coef: 1
+      load_ckpt: null
+      load_dir: .checkpoints/${model.name}/${task.name}/finetune/${method.run_name}_retain
+      metric: bias_score
+      mode: max
+
   save_model: false
-  metric: bias_score
-  mode: max
 
 do_train: false
 do_test: true

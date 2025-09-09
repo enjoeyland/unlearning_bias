@@ -1,11 +1,13 @@
 #!/bin/bash
 #SBATCH -J UnlearningBias
 #SBATCH -p suma_a6000
-#SBATCH --gres=gpu:1
+#SBATCH --gres=gpu:2
 #SBATCH --output=outputs/output_%j.log
-#SBATCH --time 6:00:00
-date=`date +%Y-%m-%d`
-time=`date +%H-%M-%S`
+#SBATCH --time 12:00:00
+
+start_date=`date +%Y-%m-%d`
+start_time=`date +%H-%M-%S`
+echo "Job started at $start_date $start_time"
 
 gpustat
 python -u run.py \
@@ -13,7 +15,43 @@ python -u run.py \
     logging.progress_bar=tqdm \
     logging.progress_bar_refresh_rate=40 \
     experiment=tabular_with_generation \
-    model=gpt-3.5
+    prompt=finetune_zero_shot \
+    method.fit_target=false_pred_0 \
+    task.data_path.train=data/adult_train_false_pred_0_label_flip.json \
+    task.data_path.valid=data/adult_train_false_pred_0_label_flip.json \
+    callbacks.eval_steps=1.0 \
+    # training.world_size=1 \
+    # training.per_device_batch_size=1 \
+    # training.gradient_accumulation_steps=128 \
+
+
+    # experiment=tabular_with_generation \
+    # prompt=finetune_zero_shot \
+    # method.fit_target=true_pred \
+    # task.data_path.train=data/adult_train_true_pred.json \
+    # task.data_path.valid=data/adult_train_true_pred.json \
+    # callbacks.eval_steps=0.2 \
+    # training.world_size=1 \
+    # training.per_device_batch_size=1 \
+    # training.gradient_accumulation_steps=128
+
+    # experiment=tabular_with_generation \
+    # prompt=find_prediction_dataset \
+    # prompt=finetune_zero_shot \
+
+    # training.world_size=1 \
+    # training.per_device_batch_size=1 \
+    # training.gradient_accumulation_steps=128 \
+    # # load_from_checkpoint='.checkpoints_scratch2/llama3.1-8b-instruct/adult/finetune_zero_shot/BS128_Pfinetune_zero_shot_S42/prompt_acc\=0.861-bal_acc\=0.785-eo\=0.1828-spd\=0.2102.ckpt' \
+    # do_train=false \
+    # do_eval=true \
+    
+    # experiment=tabular_with_generation \
+    # prompt=negtaskvector_zero_shot \
+    # method.trained_models.false_pred_0.scaling_coef=0,0.2,0.4,0.6,0.8,1 \
+    # method.trained_models.false_pred_1.scaling_coef=0,0.2,0.4,0.6,0.8,1 \
+    # method.trained_models.true_pred.scaling_coef=1 \
+
 
     # model=llama3-8b \
     # method.fit_target=retain \
@@ -51,5 +89,7 @@ python -u run.py \
 
     # task=crows_pairs \
     # model=opt-6.7b \
-
-mv ./outputs/output_$SLURM_JOB_ID.log ./outputs/${SLURM_JOB_ID}_${date}_${time}_output.log
+end_date=`date +%Y-%m-%d`
+end_time=`date +%H-%M-%S`
+echo "Job finished at $end_date $end_time"
+mv ./outputs/output_$SLURM_JOB_ID.log ./outputs/${SLURM_JOB_ID}_${start_date}_${start_time}_output.log
