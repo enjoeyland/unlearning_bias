@@ -1,8 +1,0 @@
-name : regularization
-fit_target: retain  # options: [forget, retain]
-run_name: BS${training.train_batch_size}_LR${training.learning_rate}_S${training.seed}_${method.fit_target}
-regularization_weight: 0.5
-balance_weight: 2.0
-
-# python run.py -m method=regularization method.regularization_weight=1.0 method.balance_weight=2.0
-# python run.py method=regularization method.regularization_weight=0.25 method.balance_weight=2.0 training.per_device_batch_size=32 training.gradient_accumulation_steps=4 callbacks.eval_steps=0.25

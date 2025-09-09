@@ -1,3 +1,0 @@
-name: stereoset
-task_type: CAUSAL_LM # options: [CAUSAL_LM, SEQ_CLS]
-data_path: data/stereoset.json
